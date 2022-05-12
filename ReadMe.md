@@ -2,7 +2,7 @@
 
 motionEye.eo is an online interface for the software [ _motion_ ](https://motion-project.github.io/), a video surveillance program with motion detection.
 
-It's a fork of [ _motionEye_ ](https://github.com/motioneye-project/motioneye).  
+It's a fork of [ _motionEye_ ](https://github.com/motioneye-project/motioneye).
 
 The supported languages are:
 * French
@@ -44,5 +44,4 @@ sudo systemctl start motioneye
 ```
 
 # Documentation
-[Clik here to view documentation](https://jmichault.github.io/motioneye.eo-dok/)
-
+[Click here to view documentation](https://jmichault.github.io/motioneye.eo-dok/)

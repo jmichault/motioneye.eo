@@ -13,12 +13,12 @@ function makeCheckBox($input) {
         var text = $('<span class="check-box-text"><span>');
 
         function setOn() {
-            text.html('<img src="' + staticPath + 'img/IEC5007_On_Symbol.svg" style="width:18px;height:18px;padding:2px">');
+            text.html('<img src="' + staticPath + 'img/IEC5007_On_Symbol.svg" style="width:70%;height:70%;padding:12%">');
             mainDiv.addClass('on');
         }
 
         function setOff() {
-            text.html('<img src="' + staticPath + 'img/IEC5008_Off_Symbol.svg" style="width:18px;height:18px;padding:2px">');
+            text.html('<img src="' + staticPath + 'img/IEC5008_Off_Symbol.svg" style="width:70%;height:70%;padding:12%">');
             mainDiv.removeClass('on');
         }
 
@@ -43,7 +43,7 @@ function makeCheckBox($input) {
         /* add event handers */
         $this.change(update).change();
 
-        mainDiv.click(function () {
+        mainDiv.on('click', function () {
             $this[0].checked = !$this[0].checked;
             $this.change();
         });
@@ -938,7 +938,7 @@ function makeModalDialogButtons(buttonsInfo) {
             buttonDiv.addClass(info.className);
         }
 
-        buttonDiv.click(info.click);
+        buttonDiv.on('click', info.click);
 
         var td = $('<td></td>');
         td.append(buttonDiv);
@@ -969,7 +969,7 @@ function makeModalDialogTitleBar(options) {
 
     if (options.closeButton) {
         var closeButton = $('<div class="button icon modal-close-button mouse-effect" title="'+i18n.gettext("fermi")+'"></div>');
-        closeButton.click(hideModalDialog);
+        closeButton.on('click', hideModalDialog);
         titleBar.append(closeButton);
     }
 

@@ -74,6 +74,8 @@
     <!-- gettext.js required for setting language -->
     <script src="{{static_path}}js/gettext.min.js"></script>
     <script>
+        var i18n = window.i18n();
+      {% if settings.lingvo != 'eo' %}
         // Set language for JavaScript
         function Get(yourUrl){
             var Httpreq = new XMLHttpRequest(); // a new request
@@ -81,10 +83,10 @@
             Httpreq.send(null);
             return Httpreq.responseText;
         }
-        var i18n = window.i18n();
-        var i18njson=Get("{{static_path}}js/motioneye.{{lingvo}}.json");
+        var i18njson=Get("{{static_path}}js/motioneye.{{settings.lingvo}}.json");
         i18n.loadJSON(i18njson, 'messages');
-        i18n.setLocale('{{lingvo}}');
+      {% endif %}
+        i18n.setLocale('{{settings.lingvo}}');
         // Pass variables to JavaScript
         var adminUsername = '{{admin_username}}';
         var frame = {% if frame %}true{% else %}false{% endif %};
@@ -161,6 +163,15 @@
                         <span class="minimize open"></span>
                     </div>
                     <table class="settings">
+                        <tr class="settings-item" strip="true">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Lingvo") }}</span></td>
+                            <td class="settings-item-value"><select class="styled general main-config" id="langSelect">
+                              {% for lang in settings.langlist %}
+                              <option value="{{lang[0]}}">{{lang[1]}}</option>
+                              {% endfor %}
+                              </select></td>
+                            <td><span class="help-mark" title="{{ _("la lingvo de la interfaco (du literoj)") }}">?</span></td>
+                        </tr>
                         <tr class="settings-item" required="true" strip="true">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Administranto") }}</span></td>
                             <td class="settings-item-value"><input type="text" autocapitalize="none" class="styled general main-config" id="adminUsernameEntry" readonly="readonly"></td>
@@ -258,7 +269,7 @@
                     <table class="settings">
                         <tr class="settings-item" required="true" strip="true">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Kamerao Nomo") }}</span></td>
-                            <td class="settings-item-value"><input type="text" class="styled device camera-config" id="deviceNameEntry" placeholder="{{ _("kameraa nomo...") }}"></td>
+                            <td class="settings-item-value"><input type="text" class="styled device camera-config" id="deviceNameEntry" placeholder="{{ _("kameraa nomo…") }}"></td>
                             <td><span class="help-mark" title="{{ _("alias pri ĉi tiu kamera aparato") }}">?</span></td>
                         </tr>
                         <tr class="settings-item" required="true" strip="true">
@@ -349,7 +360,7 @@
                         <tr class="settings-item">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Ekstraj Elektoj") }}</span></td>
                             <td class="settings-item-value"><textarea class="styled device camera-config" id="extraOptionsEntry" rows="3"></textarea></td>
-                            <td><span class="help-mark" title="{{ _("vi povas aldoni ĉi tie iujn ajn kromajn eblojn por la &quot;motion&quot; demono (uzu la formaton &quot;nomo valoro&quot;, unu opcion po linio)") }}">?</span></td>
+                            <td><span class="help-mark" title="{{ _("vi povas aldoni iujn ajn pliajn opciojn ĉi tie por la «motion» demono (uzu la «nomo valoro» formaton, unu opcion por linio)") }}">?</span></td>
                         </tr>
                         {% for config in camera_sections.get('device', {}).get('configs', []) %}
                             {{config_item(config)}}
@@ -453,7 +464,8 @@
                                     <option value="gdrive">Google Drive</option>
                                     <option value="gphoto">Google Photo</option>
                                     <option value="dropbox">Dropbox</option>
-                                    <option value="s3">S3 (AWS/MinIO/...)</option>
+                                    <option value="s3">S3 (AWS/MinIO/…)</option>
+                                    <option value="webdav">WebDAV</option>
                                 </select>
                             </td>
                             <td><span class="help-mark" title="{{ _("elektu servon, al kiu la mediadosieroj estu alŝutitaj") }}">?</span></td>
@@ -478,6 +490,13 @@
                             </td>
                             <td><span class="help-mark" title="{{ _("la HTTP-metodo uzi por alŝuti dosierojn") }}">?</span></td>
                         </tr>
+                        <tr class="settings-item" depends="uploadEnabled uploadService=(s3|webdav)">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Finpunkto URL") }}</span></td>
+                            <td class="settings-item-value"><input type="text" class="styled storage camera-config" id="uploadEndpointUrlEntry"></td>
+                            <td><span class="help-mark" title="{{ _("La kompleta URL al la alŝuta servila finpunkto:") }}
+      {{ _("For S3: E.g. http://my.minio:9000. Leave it empty for AWS!") }}
+      {{ _("For WebDAV: E.g. https://my.cloud/remote.php/dav/files/Me/") }}">?</span></td>
+                        </tr>
                         <tr class="settings-item" required="true" depends="uploadEnabled uploadService!=(s3)">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Loko") }}</span></td>
                             <td class="settings-item-value"><input type="text" class="styled storage camera-config" id="uploadLocationEntry"></td>
@@ -493,12 +512,12 @@
                             <td class="settings-item-value"><input type="checkbox" class="styled storage camera-config" id="cleanCloudEnabledSwitch"></td>
                             <td><span class="help-mark" title="{{ _("ebligu ĉi tion forigi amaskomunikilaĵojn dosierojn alŝutitajn al la nubo ankaŭ kiam loka amaskomunikilaro estas forigita konforme al la agordo de persistemo de dosieroj. Nuntempe ĉi tiu opcio nur haveblas por gdrivo.") }}">?</span></td>
                         </tr>
-                        <tr class="settings-item" depends="uploadEnabled uploadService=(ftp|sftp|http|https)">
+                        <tr class="settings-item" depends="uploadEnabled uploadService=(ftp|sftp|http|https|webdav)">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Uzantnomo") }}</span></td>
                             <td class="settings-item-value"><input type="text" autocapitalize="none" class="styled storage camera-config" id="uploadUsernameEntry"></td>
                             <td><span class="help-mark" title="{{ _("la uzantnomo por la alŝuta servo-konto") }}">?</span></td>
                         </tr>
-                        <tr class="settings-item" depends="uploadEnabled uploadService=(ftp|sftp|http|https)">
+                        <tr class="settings-item" depends="uploadEnabled uploadService=(ftp|sftp|http|https|webdav)">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Pasvorto") }}</span></td>
                             <td class="settings-item-value"><input type="password" autocomplete="new-password" class="styled storage camera-config" id="uploadPasswordEntry"></td>
                             <td><span class="help-mark" title="{{ _("la pasvorto por la alŝuta servo-konto") }}">?</span></td>
@@ -516,11 +535,6 @@
                                 </div>
                             </td>
                             <td><span class="help-mark" title="{{ _("alklaku ĉi tie por akiri la ŝlosilan rajtigan servon") }}">?</span></td>
-                        </tr>
-                        <tr class="settings-item" depends="uploadEnabled uploadService=(s3)">
-                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Endpoint URL") }}</span></td>
-                            <td class="settings-item-value"><input type="text" class="styled storage camera-config" id="uploadEndpointUrlEntry"></td>
-                            <td><span class="help-mark" title="{{ _("The complete URL to the S3 server endpoint, e.g. http://my.minio:9000. Leave this empty for AWS!") }}">?</span></td>
                         </tr>
                         <tr class="settings-item" depends="uploadEnabled uploadService=(s3)">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Access Key") }}</span></td>
@@ -577,7 +591,7 @@
                         </tr>
                         <tr class="settings-item" required="true" depends="commandStorageEnabled" strip="true">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Ordono") }}</span></td>
-                            <td class="settings-item-value"><input type="text" class="styled storage camera-config" id="commandStorageEntry" placeholder="{{ _("ordono...") }}"></td>
+                            <td class="settings-item-value"><input type="text" class="styled storage camera-config" id="commandStorageEntry" placeholder="{{ _("ordono…") }}"></td>
                             <td><span class="help-mark" title="{{ _("Komando por esti plenumita post la kreo de plurmedia dosiero. Pluraj komandoj povas esti apartigitaj per punktoknomo; ne uzu punktoknomo en komandojn; la sekvaj specialaj tokensoj estas akceptitaj: %%Y = jaro, %%m = monato, %%d = tago, %%H = horo, %%M = minuto, %%S = sekundo, %%q = kadra numero , %%v = okaza numero, %%f = dosiera vojo") }}">?</span></td>
                         </tr>
                         {% for config in camera_sections.get('storage', {}).get('configs', []) %}
@@ -607,7 +621,7 @@
                         </tr>
                         <tr class="settings-item" required="true" depends="leftTextType=custom-text" strip="true">
                             <td class="settings-item-label"></td>
-                            <td class="settings-item-value"><input type="text" class="styled text-overlay camera-config" id="leftTextEntry" placeholder="{{ _("propra teksto...") }}"></td>
+                            <td class="settings-item-value"><input type="text" class="styled text-overlay camera-config" id="leftTextEntry" placeholder="{{ _("propra teksto…") }}"></td>
                             <td><span class="help-mark" title="{{ _("Difinas kutimon maldekstran tekston; la sekvaj specialaj tokensoj estas akceptitaj:%%Y = jaro,%%m = monato,%%d = tago,%%H = horo,%%M = minuto,%%S = sekundo,%%q = kadro numero,%%v = evento numero,%%T = HH:MM:SS, \\n = nova linio") }}">?</span></td>
                         </tr>
                         <tr class="settings-item">
@@ -624,7 +638,7 @@
                         </tr>
                         <tr class="settings-item" required="true" depends="rightTextType=custom-text" strip="true">
                             <td class="settings-item-label"></td>
-                            <td class="settings-item-value"><input type="text" class="styled text-overlay camera-config" id="rightTextEntry" placeholder="{{ _("propra teksto...") }}"></td>
+                            <td class="settings-item-value"><input type="text" class="styled text-overlay camera-config" id="rightTextEntry" placeholder="{{ _("propra teksto…") }}"></td>
                             <td><span class="help-mark" title="{{ _("Difinas kutimon dekstran tekston; la sekvaj specialaj tokensoj estas akceptitaj:%%Y = jaro,%%m = monato,%%d = tago,%%H = horo,%%M = minuto,%%S = sekundo,%%q = kadro numero,%%v = evento numero,%%T = HH:MM:SS, \\n = nova linio") }}">?</span></td>
                         </tr>
                         <tr class="settings-item" min="1" max="10" snap="1" ticksnum="10" decimals="0">
@@ -731,7 +745,7 @@
                     <table class="settings">
                         <tr class="settings-item" required="true" strip="true">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Nomo Bildo-Dosiero") }}</span></td>
-                            <td class="settings-item-value"><input type="text" class="styled still-images camera-config" id="imageFileNameEntry" placeholder="{{ _("ŝablona nomo de dosiero...") }}"></td>
+                            <td class="settings-item-value"><input type="text" class="styled still-images camera-config" id="imageFileNameEntry" placeholder="{{ _("dosiernomo ŝablono…") }}"></td>
                             <td><span class="help-mark" title="{{ _("Difinas la nomon ŝablonon por bilddosieroj (JPEG); la sekvaj specialaj tokensoj estas akceptitaj:%%Y = jaro,%%m = monato,%%d = tago,%%H = horo,%%M = minuto,%%S = sekundo,%%q = kadro numero,%%v = evento numero, / = subdosierujo.") }}">?</span></td>
                         </tr>
                         <tr class="settings-item" min="0" max="100" snap="2" ticksnum="5" decimals="0" unit="%">
@@ -800,7 +814,7 @@
                     <table class="settings">
                         <tr class="settings-item" required="true" strip="true">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Filma Dosiernomo") }}</span></td>
-                            <td class="settings-item-value"><input type="text" class="styled movies camera-config" id="movieFileNameEntry" placeholder="{{ _("ŝablona nomo de dosiero...") }}"></td>
+                            <td class="settings-item-value"><input type="text" class="styled movies camera-config" id="movieFileNameEntry" placeholder="{{ _("dosiernomo ŝablono…") }}"></td>
                             <td><span class="help-mark" title="{{ _("Difinas la nomon ŝablonon por por la filmdosieroj; la sekvaj specialaj tokensoj estas akceptitaj:%%Y = jaro,%%m = monato,%%d = tago,%%H = horo,%%M = minuto,%%S = sekundo,%%q = kadro numero,%%v = evento numero, / = subdosierujo.") }}">?</span></td>
                         </tr>
                         <tr class="settings-item">
@@ -1040,7 +1054,7 @@
                         </tr>
                         <tr class="settings-item" required="true" depends="emailNotificationsEnabled motionDetectionEnabled" strip="true">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Retpoŝtadresoj") }}</span></td>
-                            <td class="settings-item-value"><input type="text" autocomplete="new-password" class="styled notifications camera-config" id="emailAddressesEntry" placeholder="{{ _("retpoŝtadresoj...") }}"></td>
+                            <td class="settings-item-value"><input type="text" autocomplete="new-password" class="styled notifications camera-config" id="emailAddressesEntry" placeholder="{{ _("retpoŝtadresoj…") }}"></td>
                             <td><span class="help-mark" title="{{ _("Retpoŝtadresoj (apartigitaj per komo) aldonitaj ĉi tie ricevos sciigojn kiam ajn moviĝokazaĵo estas detektita.") }}">?</span></td>
                         </tr>
                         <tr class="settings-item" required="true" depends="emailNotificationsEnabled motionDetectionEnabled" strip="true">
@@ -1055,7 +1069,7 @@
                         </tr>
                         <tr class="settings-item" depends="emailNotificationsEnabled motionDetectionEnabled" strip="true">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("SMTP-Konto") }}</span></td>
-                            <td class="settings-item-value"><input type="text" class="styled notifications camera-config" id="smtpAccountEntry" placeholder="{{ _("konto@gmail.com...") }}"></td>
+                            <td class="settings-item-value"><input type="text" class="styled notifications camera-config" id="smtpAccountEntry" placeholder="{{ _("konto@gmail.com…") }}"></td>
                             <td><span class="help-mark" title="{{ _("Enigu vian SMTPan konton (kutime via retpoŝta adreso).") }}">?</span></td>
                         </tr>
                         <tr class="settings-item" depends="emailNotificationsEnabled motionDetectionEnabled" strip="true">
@@ -1065,7 +1079,7 @@
                         </tr>
                         <tr class="settings-item" depends="emailNotificationsEnabled motionDetectionEnabled" strip="true">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("De adreso") }}</span></td>
-                            <td class="settings-item-value"><input type="text" class="styled notifications camera-config" id="emailFromEntry" placeholder="{{ _("retpoŝta adreso...") }}"></td>
+                            <td class="settings-item-value"><input type="text" class="styled notifications camera-config" id="emailFromEntry" placeholder="{{ _("retpoŝta adreso…") }}"></td>
                             <td><span class="help-mark" title="{{ _("Agordi kutimon De adreso, se via SMTP-servo postulas unu (la unua destina retpoŝta adreso estos uzata se lasita malplena).") }}">?</span></td>
                         </tr>
                         <tr class="settings-item" depends="emailNotificationsEnabled motionDetectionEnabled">
@@ -1094,7 +1108,7 @@
                         <tr class="settings-item" required="true" depends="telegramNotificationsEnabled motionDetectionEnabled" strip="true">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("HTTP API ĵetono") }}</span></td>
                             <td class="settings-item-value"><input type="text" autocomplete="new-password" class="styled notifications camera-config" id="telegramAPIEntry" placeholder="{{ _("Ekzemplo: 93847672:AACdSn843hsjJsh32bSmdN3sHsh2bsh0xRs_32dbcr1W") }}"></td>
-                            <td><span class="help-mark" title="{{ _("Kreante la telegraman bot-babilejon, vi ricevos API-ĵetonon, kiun vi devas enigi ĉi tie. Alklaku la API-butonon sube por paŝa gvidilo pri kiel akiri vian API-ĵetonon. Ankaŭ nepre babilu vian nove kreitan boton post kiam via ŝlosilo estas generita, por certigi, ke vi ricevas mesaĝojn.") }}">?</span></td>
+                            <td><span class="help-mark" title="{{ _("Kreante la telegram-bot-babilejon, vi ricevos API-ĵetonon, kiun vi devas enigi ĉi tie. Alklaku la API-butonon sube por paŝo-post-paŝa gvidilo pri kiel akiri vian API-ĵetonon. Ankaŭ nepre babili kun via lastatempe kreita «bot» post kiam via ŝlosilo estas generita, por certigi, ke vi ricevas mesaĝojn.") }}">?</span></td>
                         </tr>
                         <tr class="settings-item" required="true" depends="telegramNotificationsEnabled motionDetectionEnabled" strip="true">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Babileja ID") }}</span></td>
@@ -1107,8 +1121,8 @@
                             <td><span class="help-mark" title="{{ _("difinas la bildan serĉtempan intervalon por krei telegramajn aldonojn (pli altaj valoroj generas pli da bildoj koste de pliigita sciiga prokrasto); agordi al 0 por malebligi bildajn aldonaĵojn; vi devas ankaŭ ebligi Senmovajn Bildojn por ke ĉi tio funkciu; vi volos ludi per ĉi tiu numero ĝis bildo estos sendita. Bona komenca numero estas 30 se vi agordas senmovajn bildojn al unu bildmoviĝo ekigita. Por norma movado ekigita, starigu ĉi tion multe pli malalte.") }}">?</span></td>
                         </tr>
                         <tr class="settings-item" required="true" depends="telegramNotificationsEnabled motionDetectionEnabled" strip="true">
-				<td class="settings-item-label"><a href="https://core.telegram.org/bots#6-botfather" target="_blank"><div class="button normal-button test-button" id="apiInstructionButton" style="opacity: 1; display: inline-block;">{{ _("API-Informoj") }}</div></a></td>
-				<td class="settings-item-label"><div class="button normal-button test-button" id="telegramTestButton" style="opacity: 1; display: inline-block;">{{ _("Testo") }}</div></td>
+                            <td class="settings-item-label"><a href="https://core.telegram.org/bots#6-botfather" target="_blank"><div class="button normal-button test-button" id="apiInstructionButton" style="opacity: 1; display: inline-block;">{{ _("API-Informoj") }}</div></a></td>
+                            <td class="settings-item-label"><div class="button normal-button test-button" id="telegramTestButton" style="opacity: 1; display: inline-block;">{{ _("Testo") }}</div></td>
                         </tr>
                         <tr class="settings-item" depends="motionDetectionEnabled">
                             <td colspan="100"><div class="settings-item-separator"></div></td>
@@ -1145,7 +1159,7 @@
                         </tr>
                         <tr class="settings-item" required="true" depends="commandNotificationsEnabled motionDetectionEnabled" strip="true">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Komando") }}</span></td>
-                            <td class="settings-item-value"><input type="text" class="styled notifications camera-config" id="commandNotificationsEntry" placeholder="{{ _("komando...") }}"></td>
+                            <td class="settings-item-value"><input type="text" class="styled notifications camera-config" id="commandNotificationsEntry" placeholder="{{ _("komando…") }}"></td>
                             <td><span class="help-mark" title="{{ _("Komando por esti lanĉa kiam moviĝo estas detektita; multnombraj komandoj povas esti apartigitaj per dupunkto; ne uzu punktokomojn per komandoj; la sekvaj specialaj tokensoj estas akceptitaj: %%Y = jaro, %%m = monato, %%d = tago, %%H = horo, %%M = minuto, %%S = sekundo, %%q = kadro-numero, %%v = okaza numero") }}">?</span></td>
                         </tr>
                         <tr class="settings-item" depends="motionDetectionEnabled">
@@ -1190,7 +1204,7 @@
                         </tr>
                         <tr class="settings-item" required="true" depends="commandEndNotificationsEnabled motionDetectionEnabled" strip="true">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Komando") }}</span></td>
-                            <td class="settings-item-value"><input type="text" class="styled notifications camera-config" id="commandEndNotificationsEntry" placeholder="{{ _("komando...") }}"></td>
+                            <td class="settings-item-value"><input type="text" class="styled notifications camera-config" id="commandEndNotificationsEntry" placeholder="{{ _("komando…") }}"></td>
                             <td><span class="help-mark" title="{{ _("Komando por esti lanĉa kiam moviĝokazaĵo finiĝas; multnombraj komandoj povas esti apartigitaj per dupunkto; ne uzu punktokompojn per komandoj; la sekvaj specialaj tokensoj estas akceptitaj: %%Y = jaro, %%m = monato, %%d = dato, %%H = horo, %%M = minuto, %%S = sekundo, %%q = kadra nombro.") }}">?</span></td>
                         </tr>
                         {% for config in camera_sections.get('notifications', {}).get('configs', []) %}
@@ -1300,7 +1314,6 @@
                     </table>
                     {% endif %}
                     {% endfor %}
-
                     <div class="settings-progress"></div>
                 </form>
             </div>
@@ -1313,9 +1326,8 @@
     </div>
     {% else %}
         <div class="camera-frame" id="camera{{camera_id}}"
-                streaming_framerate="{{camera_config['stream_maxrate']}}" streaming_server_resize="{{camera_config['@webcam_server_resize']|string|lower}}"
-                proto="{{camera_config['@proto']}}" url="{{camera_config['@url']}}">
-
+            streaming_framerate="{{camera_config['stream_maxrate']}}" streaming_server_resize="{{camera_config['@webcam_server_resize']|string|lower}}"
+            proto="{{camera_config['@proto']}}" url="{{camera_config['@url']}}">
             <div class="camera-container">
                 <div class="camera-placeholder"><img class="no-camera" src="{{static_path}}img/no-camera.svg"></div>
                 <img class="camera">
