@@ -1,4 +1,3 @@
-
 # Copyright (c) 2020 Vlsarro
 # Copyright (c) 2013 Calin Crisan
 # This file is part of motionEye.
@@ -20,7 +19,6 @@ import json
 import logging
 
 from motioneye.handlers.base import BaseHandler
-
 
 __all__ = ('PrefsHandler',)
 

@@ -53,42 +53,44 @@
 
 {% block style %}
     {{super()}}
-    <link rel="stylesheet" type="text/css" href="{{static_path}}css/ui.css?v={{version}}" />
-    <link rel="stylesheet" type="text/css" href="{{static_path}}css/main.css?v={{version}}" />
+    <link rel="stylesheet" type="text/css" href="{{static_path}}css/ui.css?v={{version}}">
+    <link rel="stylesheet" type="text/css" href="{{static_path}}css/main.css?v={{version}}">
     {% if frame %}
-        <link rel="stylesheet" type="text/css" href="{{static_path}}css/frame.css?v={{version}}" />
+        <link rel="stylesheet" type="text/css" href="{{static_path}}css/frame.css?v={{version}}">
     {% endif %}
 {% endblock %}
 
 {% block script %}
     {{super()}}
-    <script type="text/javascript" src="{{static_path}}js/gettext.min.js"></script>
-    <script type="text/javascript">
-      function Get(yourUrl){
-          var Httpreq = new XMLHttpRequest(); // a new request
-          Httpreq.open("GET",yourUrl,false);
-          Httpreq.send(null);
-          return Httpreq.responseText;          
-      }
-      var i18n = window.i18n();
-      var i18njson=Get("{{static_path}}js/motioneye.{{lingvo}}.json");
-      i18n.loadJSON(i18njson, 'messages');
-      i18n.setLocale('{{lingvo}}');
-
-    </script>
-    <script type="text/javascript" src="{{static_path}}js/ui.js?v={{version}} charset="utf-8" async"></script>
-    <script type="text/javascript" src="{{static_path}}js/main.js?v={{version}}" charset="utf-8"></script>
+    <script defer src="{{static_path}}js/ui.js?v={{version}}"></script>
+    <script defer src="{{static_path}}js/main.js?v={{version}}"></script>
     {% if frame %}
-        <script type="text/javascript" src="{{static_path}}js/frame.js?v={{version}}" charset="utf-8" async></script>
+        <script defer src="{{static_path}}js/frame.js?v={{version}}"></script>
     {% endif %}
-    <script type="text/javascript">
+{% endblock %}
+
+{% block inline %}
+    {{super()}}
+    <!-- gettext.js required for setting language -->
+    <script src="{{static_path}}js/gettext.min.js"></script>
+    <script>
+        // Set language for JavaScript
+        function Get(yourUrl){
+            var Httpreq = new XMLHttpRequest(); // a new request
+            Httpreq.open("GET",yourUrl,false);
+            Httpreq.send(null);
+            return Httpreq.responseText;
+        }
+        var i18n = window.i18n();
+        var i18njson=Get("{{static_path}}js/motioneye.{{lingvo}}.json");
+        i18n.loadJSON(i18njson, 'messages');
+        i18n.setLocale('{{lingvo}}');
+        // Pass variables to JavaScript
         var adminUsername = '{{admin_username}}';
         var frame = {% if frame %}true{% else %}false{% endif %};
         var hasLocalCamSupport = {% if has_motion %}true{% else %}false{% endif %};
         var hasNetCamSupport = {% if has_motion %}true{% else %}false{% endif %};
-        {% if mask_width %}
-        var maskWidth = {{mask_width}};
-        {% endif %}
+        {% if mask_width %}var maskWidth = {{mask_width}};{% endif %}
     </script>
 {% endblock %}
 
@@ -97,8 +99,8 @@
     <div class="header">
         <div class="header-container">
             <div class="settings-top-bar closed">
-                <div class="button icon settings-button mouse-effect" title="{{ _("agordojn")}}"></div
-                ><div class="button icon logout-button mouse-effect" title="{{ _("ŝanĝi uzanton")}}"></div>
+                <div class="button icon settings-button mouse-effect" title="{{ _("agordojn")}}"></div>
+                <div class="button icon logout-button mouse-effect" title="{{ _("ŝanĝi uzanton")}}"></div>
                 <select class="styled" id="cameraSelect" {% if not add_remove_cameras %}style="display: none;"{% endif %}></select>
                 <div class="button icon rem-camera-button mouse-effect" id="remCameraButton" title="{{ _("forigi kameraon")}}" {% if not add_remove_cameras %}style="display: none;"{% endif %}></div>
                 <div class="button apply-button" id="applyButton">{{ _("Apliki")}}</div>
@@ -151,10 +153,6 @@
                             <td><span class="help-mark" title="{{ _("reduktas la efektivan rezolucion de ĉiuj fotiloj por ŝpari retan larĝan bandon kaj trafikon (ne funkcias en simplaj MJPEG-fotiloj)") }}">?</span></td>
                         </tr>
                     </table>
-
-                    <tr class="settings-item">
-                        <td colspan="100"><div class="settings-item-separator" style="margin: 0px 0px 1.5em 0px;"></div></td>
-                    </tr>
 
                     <!-- General Settings -->
                     <div class="settings-section-title" id="generalSectionDiv">
@@ -249,10 +247,6 @@
                     </table>
                     {% endif %}
                     {% endfor %}
-
-                    <tr class="settings-item">
-                        <td colspan="100"><div class="settings-item-separator" style="margin: 0px 0px 1.5em 0px;"></div></td>
-                    </tr>
 
                     <!-- Video Device -->
                     <div class="settings-section-title" id="deviceSectionDiv">
@@ -454,12 +448,12 @@
                                 <select class="styled storage camera-config" id="uploadServiceSelect">
                                     <option value="ftp">{{ _("Servilo FTP") }}</option>
                                     <option value="sftp">{{ _("Servilo SFTP") }}</option>
-    <!--                                 <option value="http">{{ _("Servilo HTTP") }}</option> -->
-    <!--                                 <option value="https">{{ _("Servilo HTTPS") }}</option> -->
+                                    <!-- <option value="http">{{ _("Servilo HTTP") }}</option> -->
+                                    <!-- <option value="https">{{ _("Servilo HTTPS") }}</option> -->
                                     <option value="gdrive">Google Drive</option>
                                     <option value="gphoto">Google Photo</option>
                                     <option value="dropbox">Dropbox</option>
-                                    <option value="s3">AWS S3</option>
+                                    <option value="s3">S3 (AWS/MinIO/...)</option>
                                 </select>
                             </td>
                             <td><span class="help-mark" title="{{ _("elektu servon, al kiu la mediadosieroj estu alŝutitaj") }}">?</span></td>
@@ -484,7 +478,7 @@
                             </td>
                             <td><span class="help-mark" title="{{ _("la HTTP-metodo uzi por alŝuti dosierojn") }}">?</span></td>
                         </tr>
-                        <tr class="settings-item" required="true" depends="uploadEnabled">
+                        <tr class="settings-item" required="true" depends="uploadEnabled uploadService!=(s3)">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Loko") }}</span></td>
                             <td class="settings-item-value"><input type="text" class="styled storage camera-config" id="uploadLocationEntry"></td>
                             <td><span class="help-mark" title="{{ _("la loko (radika vojo) kie amaskomunikiloj devas esti alŝutitaj (ekz. /files/cam1/)") }}">?</span></td>
@@ -509,7 +503,7 @@
                             <td class="settings-item-value"><input type="password" autocomplete="new-password" class="styled storage camera-config" id="uploadPasswordEntry"></td>
                             <td><span class="help-mark" title="{{ _("la pasvorto por la alŝuta servo-konto") }}">?</span></td>
                         </tr>
-                        <tr class="settings-item" depends="uploadEnabled uploadService=(gdrive|gphoto|dropbox|s3)">
+                        <tr class="settings-item" depends="uploadEnabled uploadService=(gdrive|gphoto|dropbox)">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Rajtiga ŝlosilo") }}</span></td>
                             <td class="settings-item-value"><input type="password" autocomplete="new-password" class="styled storage camera-config" id="uploadAuthorizationKeyEntry"></td>
                             <td><span class="help-mark" title="{{ _("la ŝlosilo uzata por aŭtentiĝi kun la alŝuta servo (kutime bezonata nur dum agordo)") }}">?</span></td>
@@ -524,8 +518,18 @@
                             <td><span class="help-mark" title="{{ _("alklaku ĉi tie por akiri la ŝlosilan rajtigan servon") }}">?</span></td>
                         </tr>
                         <tr class="settings-item" depends="uploadEnabled uploadService=(s3)">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Endpoint URL") }}</span></td>
+                            <td class="settings-item-value"><input type="text" class="styled storage camera-config" id="uploadEndpointUrlEntry"></td>
+                            <td><span class="help-mark" title="{{ _("The complete URL to the S3 server endpoint, e.g. http://my.minio:9000. Leave this empty for AWS!") }}">?</span></td>
+                        </tr>
+                        <tr class="settings-item" depends="uploadEnabled uploadService=(s3)">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Access Key") }}</span></td>
+                            <td class="settings-item-value"><input type="password" autocomplete="new-password" class="styled storage camera-config" id="uploadAccessKeyEntry"></td>
+                            <td><span class="help-mark" title="{{ _("The AWS access key used to authenticate with the upload service") }}">?</span></td>
+                        </tr>
+                        <tr class="settings-item" depends="uploadEnabled uploadService=(s3)">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Sekreta Alira Ŝlosilo") }}</span></td>
-                            <td class="settings-item-value"><input type="password" autocomplete="new-password" class="styled storage camera-config" id="uploadSecretAccessKeyEntry"></td>
+                            <td class="settings-item-value"><input type="password" autocomplete="new-password" class="styled storage camera-config" id="uploadSecretKeyEntry"></td>
                             <td><span class="help-mark" title="{{ _("la AWS-sekreta alira ŝlosilo uzata por aŭtentiĝi kun la alŝuta servo (kutime bezonata nur dum agordo)") }}">?</span></td>
                         </tr>
                         <tr class="settings-item" depends="uploadEnabled uploadService=(s3)">
@@ -1023,6 +1027,13 @@
                     </div>
                     <table class="settings">
                         <tr class="settings-item" depends="motionDetectionEnabled">
+                            <td class="settings-item-label"><span class="settings-item-label"><strong>Actions when motion</strong></span></td>
+                            <td class="settings-item-value"><span class="settings-item-label"><strong>has started:</strong></span></td>
+                        </tr>
+                        <tr class="settings-item" depends="motionDetectionEnabled">
+                            <td colspan="100"><div class="settings-item-separator"></div></td>
+                        </tr>
+                        <tr class="settings-item" depends="motionDetectionEnabled">
                             <td class="settings-item-label"><span class="settings-item-label">{{ _("Sendi retpoŝton") }}</span></td>
                             <td class="settings-item-value"><input type="checkbox" class="styled notifications camera-config" id="emailNotificationsEnabledSwitch"></td>
                             <td><span class="help-mark" title="{{ _("Aktivigu ĉi tiun opcion, se vi volas ricevi retpoŝton ĉiufoje kiam moviĝokazaĵo estas detektita.") }}">?</span></td>
@@ -1141,7 +1152,39 @@
                             <td colspan="100"><div class="settings-item-separator"></div></td>
                         </tr>
                         <tr class="settings-item" depends="motionDetectionEnabled">
-                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Lanĉi fina komando") }}</span></td>
+                            <td class="settings-item-label"><span class="settings-item-label"><strong>Actions when motion</strong></span></td>
+                            <td class="settings-item-value"><span class="settings-item-label"><strong>has ended:</strong></span></td>
+                        </tr>
+                        <tr class="settings-item" depends="motionDetectionEnabled">
+                            <td colspan="100"><div class="settings-item-separator"></div></td>
+                        </tr>
+                        <tr class="settings-item" depends="motionDetectionEnabled">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Alvoki URL") }}</span></td>
+                            <td class="settings-item-value"><input type="checkbox" class="styled notifications camera-config" id="webHookEndNotificationsEnabledSwitch"></td>
+                            <td><span class="help-mark" title="enable this if you want a URL to be requested whenever a motion event ends">?</span></td>
+                        </tr>
+                        <tr class="settings-item" required="true" depends="webHookEndNotificationsEnabled motionDetectionEnabled" strip="true">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Reteja URL") }}</span></td>
+                            <td class="settings-item-value"><input type="text" class="styled notifications camera-config" id="webHookEndNotificationsUrlEntry" placeholder="e.g. http://example.com/notify/"></td>
+                            <td><span class="help-mark" title="a single URL to be requested when motion event ends; the following special tokens are accepted: %Y = year, %m = month, %d = day, %H = hour, %M = minute, %S = second, %q = frame number, %v = event number">?</span></td>
+                        </tr>
+                        <tr class="settings-item" depends="webHookEndNotificationsEnabled motionDetectionEnabled">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Metodo HTTP") }}</span></td>
+                            <td class="settings-item-value">
+                                <select class="styled notifications camera-config" id="webHookEndNotificationsHttpMethodSelect">
+                                    <option value="GET">GET</option>
+                                    <option value="POST">POST (query)</option>
+                                    <option value="POSTf">POST (form)</option>
+                                    <option value="POSTj">POST (json)</option>
+                                </select>
+                            </td>
+                            <td><span class="help-mark" title="{{ _("La HTTP-metodo por uzi kiam vi petas URL (la donitaj URL-parametroj estos transdonitaj kiel indikite ĉi tie).") }}">?</span></td>
+                        </tr>
+                        <tr class="settings-item" depends="motionDetectionEnabled">
+                            <td colspan="100"><div class="settings-item-separator"></div></td>
+                        </tr>
+                        <tr class="settings-item" depends="motionDetectionEnabled">
+                            <td class="settings-item-label"><span class="settings-item-label">{{ _("Lanĉi komando") }}</span></td>
                             <td class="settings-item-value"><input type="checkbox" class="styled notifications camera-config" id="commandEndNotificationsEnabledSwitch"></td>
                             <td><span class="help-mark" title="{{ _("Ebligu ĉi tion, se vi volas lanĉi komandon ĉiufoje kiam movada evento finiĝos.") }}">?</span></td>
                         </tr>
@@ -1265,7 +1308,7 @@
         <img class="background-logo" src="{{static_path}}img/motioneye-logo.svg" onmousedown="return false;">
         <div class="page-container"></div>
         <div class="footer">
-            <div class="copyright-note">copyright &copy; Calin Crisan, Jean Michault, ...</div>
+            <div class="copyright-note">copyright &copy; <a href="https://github.com/orgs/motioneye-project/people" target="_blank" rel="noopener">The motionEye Team</a></div>
         </div>
     </div>
     {% else %}
@@ -1274,8 +1317,9 @@
                 proto="{{camera_config['@proto']}}" url="{{camera_config['@url']}}">
 
             <div class="camera-container">
-                <div class="camera-placeholder"><img class="no-camera" src="{{static_path}}img/no-camera.svg"></div><img
-                    class="camera"><div class="camera-progress"><img class="camera-progress"></div>
+                <div class="camera-placeholder"><img class="no-camera" src="{{static_path}}img/no-camera.svg"></div>
+                <img class="camera">
+                <div class="camera-progress"><img class="camera-progress"></div>
             </div>
         </div>
     {% endif %}

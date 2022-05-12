@@ -8,7 +8,9 @@ var pushConfigReboot = false;
 var adminPasswordChanged = {};
 var normalPasswordChanged = {};
 var refreshDisabled = {}; /* dictionary indexed by cameraId, tells if refresh is disabled for a given camera */
-var fullScreenCameraId = null;
+var singleViewCameraId = null;
+var fullScreenMode = false;
+var wasInSingleModeBeforeFullScreen = false;
 var inProgress = false;
 var refreshInterval = 15; /* milliseconds */
 var framerateFactor = 1;
@@ -32,6 +34,7 @@ var modalContainer = null;
 var cameraFramesCached = null;
 var cameraFramesTime = 0;
 var qualifyURLElement;
+var cameraFrameRatios = [];
 
 
     /* Object utilities */
@@ -465,7 +468,10 @@ function ajax(method, url, data, callback, error, timeout) {
         processData: processData,
         error: error || function (request, options, error) {
             if (request.status == 403) {
-                return onResponse(request.responseJSON);
+                /* Proxies may respond with custom non-JSON 403 documents,
+                 * so that request.responseJSON causes an error.
+                 * We hence respond with the hardcoded JSON here. */
+                return onResponse({prompt: true, error: "unauthorized"});
             }
 
             showErrorMessage();
@@ -641,16 +647,9 @@ function initUI() {
 
         return true;
     }, '');
-    makeCustomValidator($('#webHookNotificationsUrlEntry'), function (value) {
+    makeCustomValidator($('#webHookNotificationsUrlEntry, #webHookEndNotificationsUrlEntry'), function (value) {
         if (!value.match(webHookUrlValidRegExp)) {
-            return "use of semicolon (;) or single quote (\') is not allowed in web hook URL";
-        }
-
-        return true;
-    }, '');
-    makeCustomValidator($('#webHookNotificationsUrlEntry'), function (value) {
-        if (!value.match(webHookUrlValidRegExp)) {
-            return "use of semicolon (;) or single quote (\') is not allowed in web hook URL";
+            return "use of semicolon (;) or single quote (') is not allowed in web hook URL";
         }
 
         return true;
@@ -910,19 +909,19 @@ function initUI() {
                     i18n.gettext('", ne nur tiuj kreitaj de motionEye!')));
         }
     });
-    
+
     /* disable corresponding mask editor when the mask gets disabled */
     $('#motionMaskSwitch').change(function () {
        if (!this.checked) {
             disableMaskEdit('motion');
-       } 
+       }
     });
     $('#privacyMaskSwitch').change(function () {
         if (!this.checked) {
              disableMaskEdit('privacy');
-        } 
+        }
      });
-     
+
     /* disable motion detection mask editor when mask type is no longer editable */
     $('#motionMaskTypeSelect').change(function () {
         if ($(this).val() != 'editable') {
@@ -1094,8 +1093,8 @@ function updateLayout() {
         var maxRatio = 0;
 
         frames.each(function () {
-            var img = $(this).find('img.camera');
-            var ratio = img.height() / img.width();
+            var cameraId = this.id.substring(6);
+            var ratio = cameraFrameRatios[cameraId];
             if (ratio > maxRatio) {
                 maxRatio = ratio;
             }
@@ -1109,12 +1108,12 @@ function updateLayout() {
         var windowWidth = $(window).width();
 
         var columns = layoutColumns;
-        if (isFullScreen() || windowWidth <= 1200) {
+        if (isSingleView() || fullScreenMode || windowWidth <= 1200) {
             columns = 1; /* always 1 column when in full screen or mobile */
         }
 
         var heightOffset = 5; /* some padding */
-        if (!isFullScreen()) {
+        if (!fullScreenMode && !isSingleView()) {
             heightOffset += 50; /* top bar */
         }
 
@@ -1146,6 +1145,7 @@ function showCameraOverlay() {
     getCameraFrames().find('div.camera-overlay').css('display', '');
     setTimeout(function () {
         getCameraFrames().find('div.camera-overlay').addClass('visible');
+        updateCameraTopButtonState();
     }, 10);
 
     overlayVisible = true;
@@ -1248,7 +1248,7 @@ function enableMaskEdit(cameraId, maskClass, width, height) {
 
             maskLines.push(line);
         }
-        
+
         $('#'+maskClass+'MaskLinesEntry').val(maskLines.join(',')).change();
     }
 
@@ -1418,12 +1418,14 @@ function openSettings(cameraId) {
     $('div.settings-top-bar').addClass('open').removeClass('closed');
 
     updateConfigUI();
-    doExitFullScreenCamera();
+    doExitFullScreenCamera(true);
     updateLayout();
-    setTimeout(updateLayout, 200);
 }
 
 function closeSettings() {
+    if (!isSettingsOpen()) {
+        return;
+    }
     hideApply();
     pushConfigs = {};
     pushConfigReboot = false;
@@ -1936,9 +1938,10 @@ function cameraUi2Dict() {
         'upload_username': $('#uploadUsernameEntry').val(),
         'upload_password': $('#uploadPasswordEntry').val(),
         'upload_authorization_key': $('#uploadAuthorizationKeyEntry').val(),
-        'upload_secret_access_key': $('#uploadSecretAccessKeyEntry').val(),
+        'upload_endpoint_url': $('#uploadEndpointUrlEntry').val(),
+        'upload_access_key': $('#uploadAccessKeyEntry').val(),
+        'upload_secret_key': $('#uploadSecretKeyEntry').val(),
         'upload_bucket': $('#uploadBucketEntry').val(),
-	'upload_bucket_region': $('#uploadBucketRegionEntry').val(),
         'clean_cloud_enabled': $('#cleanCloudEnabledSwitch')[0].checked,
         'web_hook_storage_enabled': $('#webHookStorageEnabledSwitch')[0].checked,
         'web_hook_storage_url': $('#webHookStorageUrlEntry').val(),
@@ -2020,6 +2023,9 @@ function cameraUi2Dict() {
         'web_hook_notifications_enabled': $('#webHookNotificationsEnabledSwitch')[0].checked,
         'web_hook_notifications_url': $('#webHookNotificationsUrlEntry').val(),
         'web_hook_notifications_http_method': $('#webHookNotificationsHttpMethodSelect').val(),
+        'web_hook_end_notifications_enabled': $('#webHookEndNotificationsEnabledSwitch')[0].checked,
+        'web_hook_end_notifications_url': $('#webHookEndNotificationsUrlEntry').val(),
+        'web_hook_end_notifications_http_method': $('#webHookEndNotificationsHttpMethodSelect').val(),
         'command_notifications_enabled': $('#commandNotificationsEnabledSwitch')[0].checked,
         'command_notifications_exec': $('#commandNotificationsEntry').val(),
         'command_end_notifications_enabled': $('#commandEndNotificationsEnabledSwitch')[0].checked,
@@ -2268,8 +2274,10 @@ function dict2CameraUi(dict) {
     $('#uploadUsernameEntry').val(dict['upload_username']); markHideIfNull('upload_username', 'uploadUsernameEntry');
     $('#uploadPasswordEntry').val(dict['upload_password']); markHideIfNull('upload_password', 'uploadPasswordEntry');
     $('#uploadAuthorizationKeyEntry').val(dict['upload_authorization_key']); markHideIfNull('upload_authorization_key', 'uploadAuthorizationKeyEntry');
-    $('#uploadSecretAccessKeyEntry').val(dict['upload_secret_access_key']); 
-    $('#uploadBucketEntry').val(dict['upload_bucket']);
+    $('#uploadEndpointUrlEntry').val(dict['upload_endpoint_url']); markHideIfNull('upload_endpoint_url', 'uploadEndpointUrlEntry');
+    $('#uploadAccessKeyEntry').val(dict['upload_access_key']); markHideIfNull('upload_access_key', 'uploadAccessKeyEntry');
+    $('#uploadSecretKeyEntry').val(dict['upload_secret_key']); markHideIfNull('upload_secret_key', 'uploadSecretKeyEntry');
+    $('#uploadBucketEntry').val(dict['upload_bucket']); markHideIfNull('upload_bucket', 'uploadBucketEntry');
     $('#cleanCloudEnabledSwitch')[0].checked = dict['clean_cloud_enabled']; markHideIfNull('clean_cloud_enabled', 'cleanCloudEnabledSwitch');
 
     $('#webHookStorageEnabledSwitch')[0].checked = dict['web_hook_storage_enabled']; markHideIfNull('web_hook_storage_enabled', 'webHookStorageEnabledSwitch');
@@ -2397,6 +2405,10 @@ function dict2CameraUi(dict) {
     $('#webHookNotificationsEnabledSwitch')[0].checked = dict['web_hook_notifications_enabled']; markHideIfNull('web_hook_notifications_enabled', 'webHookNotificationsEnabledSwitch');
     $('#webHookNotificationsUrlEntry').val(dict['web_hook_notifications_url']);
     $('#webHookNotificationsHttpMethodSelect').val(dict['web_hook_notifications_http_method']);
+
+    $('#webHookEndNotificationsEnabledSwitch')[0].checked = dict['web_hook_end_notifications_enabled']; markHideIfNull('web_hook_end_notifications_enabled', 'webHookEndNotificationsEnabledSwitch');
+    $('#webHookEndNotificationsUrlEntry').val(dict['web_hook_end_notifications_url']);
+    $('#webHookEndNotificationsHttpMethodSelect').val(dict['web_hook_end_notifications_http_method']);
 
     $('#commandNotificationsEnabledSwitch')[0].checked = dict['command_notifications_enabled']; markHideIfNull('command_notifications_enabled', 'commandNotificationsEnabledSwitch');
     $('#commandNotificationsEntry').val(dict['command_notifications_exec']);
@@ -3005,8 +3017,10 @@ function doTestUpload() {
         username: $('#uploadUsernameEntry').val(),
         password: $('#uploadPasswordEntry').val(),
         authorization_key: $('#uploadAuthorizationKeyEntry').val(),
-        secret_access_key: $('#uploadSecretAccessKeyEntry').val,
-        bucket: $('#uploadBucketEntry').val
+        endpoint_url: $('#uploadEndpointUrlEntry').val(),
+        access_key: $('#uploadAccessKeyEntry').val(),
+        secret_key: $('#uploadSecretKeyEntry').val(),
+        bucket: $('#uploadBucketEntry').val()
     };
 
     var cameraId = $('#cameraSelect').val();
@@ -3636,7 +3650,7 @@ function runPictureDialog(entries, pos, mediaType, onDelete) {
 
       var playButton = $('<div class="picture-dialog-play button mouse-effect" title="'+i18n.gettext("ludi")+'"></div>');
       playButtonContainer.append(playButton);
-    
+
       var timelapseButton = $('<div class="picture-dialog-timelapse button mouse-effect" title="'+i18n.gettext("ludi * 5 kaj enĉenigi")+'"></div>');
       playButtonContainer.append(timelapseButton);
 
@@ -4681,7 +4695,9 @@ function addCameraFrameUi(cameraConfig) {
                     '<div class="camera-overlay-top">' +
                         '<div class="camera-name"><span class="camera-name"></span></div>' +
                         '<div class="camera-top-buttons">' +
-                            '<div class="button icon camera-top-button mouse-effect full-screen" title="' + i18n.gettext("plena ekrano kamerao") +'"></div>' +
+                            '<div class="button icon camera-top-button mouse-effect full-screen" title="' + i18n.gettext("montru ĉi tiun fotilon plenekranan") +'"></div>' +
+                            '<div class="button icon camera-top-button mouse-effect multi-camera" title="' + i18n.gettext("montri ĉiujn fotilojn") +'"></div>' +
+                            '<div class="button icon camera-top-button mouse-effect single-camera" title="' + i18n.gettext("montru nur ĉi tiun fotilon") +'"></div>' +
                             '<div class="button icon camera-top-button mouse-effect media-pictures" title="' + i18n.gettext("malfermaj bildoj retumilo") + '"></div>' +
                             '<div class="button icon camera-top-button mouse-effect media-movies" title="' + i18n.gettext("malferma videoj retumilo") + '"></div>' +
                             '<div class="button icon camera-top-button mouse-effect configure" title="' + i18n.gettext("agordi ĉi tiun kameraon") + '"></div>' +
@@ -4729,6 +4745,8 @@ function addCameraFrameUi(cameraConfig) {
     var picturesButton = cameraFrameDiv.find('div.camera-top-button.media-pictures');
     var moviesButton = cameraFrameDiv.find('div.camera-top-button.media-movies');
     var fullScreenButton = cameraFrameDiv.find('div.camera-top-button.full-screen');
+    var multiCameraButton = cameraFrameDiv.find('div.camera-top-button.multi-camera');
+    var singleCameraButton = cameraFrameDiv.find('div.camera-top-button.single-camera');
 
     var cameraInfoDiv = cameraFrameDiv.find('div.camera-info');
     var cameraInfoSpan = cameraFrameDiv.find('span.camera-info');
@@ -4836,11 +4854,28 @@ function addCameraFrameUi(cameraConfig) {
 
     fullScreenButton.click(function (cameraId) {
         return function () {
-            if (fullScreenCameraId && fullScreenCameraId == cameraId) {
-                doExitFullScreenCamera();
+            doFullScreenCamera(cameraId);
+        };
+    }(cameraId));
+
+    multiCameraButton.click(function () {
+        return function () {
+            if (fullScreenMode) {
+                doExitFullScreenCamera(false);
+            } else if (isSingleView()) {
+                doExitSingleViewCamera();
             }
-            else {
-                doFullScreenCamera(cameraId);
+        };
+    }());
+
+    singleCameraButton.click(function (cameraId) {
+        return function () {
+            if (fullScreenMode) {
+                doExitFullScreenCamera(true);
+            } else if (isSingleView()) {
+                doExitSingleViewCamera();
+            } else {
+                doSingleViewCamera(cameraId);
             }
         };
     }(cameraId));
@@ -5008,7 +5043,7 @@ function addCameraFrameUi(cameraConfig) {
             }
         }
 
-        if (fullScreenCameraId) {
+        if (singleViewCameraId) {
             /* update the modal dialog position when image is loaded */
             updateModalDialogPosition();
         }
@@ -5088,43 +5123,26 @@ function doConfigureCamera(cameraId) {
     openSettings(cameraId);
 }
 
+function isBrowserFullScreen() {
+    return !(
+        document.fullscreenElement === null ||
+        document.mozFullScreenElement === null ||
+        document.webkitFullscreenElement === null ||
+        document.msFullscreenElement === null
+    );
+}
+
 function doFullScreenCamera(cameraId) {
     if (inProgress) {
         return;
     }
 
-    if (fullScreenCameraId != null) {
-        return; /* a camera is already in full screen */
+    if (!isSingleView()) {
+        doSingleViewCamera(cameraId);
+        wasInSingleModeBeforeFullScreen = false;
+    } else {
+        wasInSingleModeBeforeFullScreen = true;
     }
-
-    closeSettings();
-
-    fullScreenCameraId = cameraId;
-
-    var cameraIds = getCameraIds();
-    cameraIds.forEach(function (cid) {
-        if (cid == cameraId) {
-            return;
-        }
-
-        refreshDisabled[cid] |= 0;
-        refreshDisabled[cid]++;
-
-        var cf = getCameraFrame(cid);
-        cf.css('height', cf.height()); /* required for the height animation */
-        setTimeout(function () {
-            cf.addClass('full-screen-hidden');
-        }, 10);
-    });
-
-    var cameraFrame = getCameraFrame(cameraId);
-    var pageContainer = getPageContainer();
-
-    pageContainer.addClass('full-screen');
-    cameraFrame.addClass('full-screen');
-    $('div.header').addClass('full-screen');
-    $('div.footer').addClass('full-screen');
-
     /* try to make browser window full screen */
     var element = document.documentElement;
     var requestFullScreen = (
@@ -5139,48 +5157,93 @@ function doFullScreenCamera(cameraId) {
 
     if (requestFullScreen) {
         requestFullScreen.call(element);
+        fullScreenMode = true;
     }
-
-    /* calling updateLayout like this fixes wrong frame size
-     * after the window as actually been put into full screen mode */
+    updateCameraTopButtonState();
     updateLayout();
-    setTimeout(updateLayout, 200);
-    setTimeout(updateLayout, 400);
-    setTimeout(updateLayout, 1000);
 }
 
-function doExitFullScreenCamera() {
-    if (fullScreenCameraId == null) {
-        return; /* no current full-screen camera */
+function doSingleViewCamera(cameraId) {
+    if (inProgress) {
+        return;
     }
 
-    getCameraFrames().
-            removeClass('full-screen-hidden').
-            css('height', '');
+    if (singleViewCameraId != null) {
+        return; /* a camera is already in single-view */
+    }
 
-    var cameraFrame = getCameraFrame(fullScreenCameraId);
-    var pageContainer = getPageContainer();
+    closeSettings();
 
-    $('div.header').removeClass('full-screen');
-    $('div.footer').removeClass('full-screen');
-    pageContainer.removeClass('full-screen');
-    cameraFrame.removeClass('full-screen');
+    singleViewCameraId = cameraId;
 
     var cameraIds = getCameraIds();
     cameraIds.forEach(function (cid) {
-        if (cid == fullScreenCameraId) {
+        if (cid == cameraId) {
+            return;
+        }
+
+        refreshDisabled[cid] |= 0;
+        refreshDisabled[cid]++;
+
+        var cf = getCameraFrame(cid);
+        cf.css('height', cf.height()); /* required for the height animation */
+        setTimeout(function () {
+            cf.addClass('single-cam-hidden');
+        }, 10);
+    });
+
+    var cameraFrame = getCameraFrame(cameraId);
+    var pageContainer = getPageContainer();
+
+    pageContainer.addClass('single-cam');
+    cameraFrame.addClass('single-cam');
+    $('div.header').addClass('single-cam');
+    $('div.footer').addClass('single-cam');
+
+    updateCameraTopButtonState();
+    updateLayout();
+}
+
+function doExitSingleViewCamera() {
+    if (singleViewCameraId == null) {
+        return; /* no current single-view camera */
+    }
+    getCameraFrames().
+            removeClass('single-cam-hidden').
+            css('height', '');
+
+    var cameraFrame = getCameraFrame(singleViewCameraId);
+    var pageContainer = getPageContainer();
+
+    $('div.header').removeClass('single-cam');
+    $('div.footer').removeClass('single-cam');
+    pageContainer.removeClass('single-cam');
+    cameraFrame.removeClass('single-cam');
+
+    var cameraIds = getCameraIds();
+    cameraIds.forEach(function (cid) {
+        if (cid == singleViewCameraId) {
             return;
         }
 
         refreshDisabled[cid]--;
     });
 
-    fullScreenCameraId = null;
+    singleViewCameraId = null;
 
+    updateCameraTopButtonState();
     updateLayout();
+}
 
-    /* exit browser window full screen */
-    var exitFullScreen = (
+function doExitFullScreenCamera(remainInSingleView = true) {
+    if (!fullScreenMode) {
+        return;
+    }
+
+    if (isBrowserFullScreen()) {
+        /* exit browser window full screen unless supposedly already
+           done by the browser (when using browser controls) */
+        var exitFullScreen = (
             document.exitFullscreen ||
             document.cancelFullScreen ||
             document.webkitExitFullscreen ||
@@ -5190,13 +5253,38 @@ function doExitFullScreenCamera() {
             document.msExitFullscreen ||
             document.msCancelFullScreen);
 
-    if (exitFullScreen) {
-        exitFullScreen.call(document);
+        if (exitFullScreen) {
+            exitFullScreen.call(document);
+        }
+    }
+    fullScreenMode = false;
+
+    if (!remainInSingleView) {
+        doExitSingleViewCamera();
+    } else {
+        updateCameraTopButtonState();
+        updateLayout();
     }
 }
 
-function isFullScreen() {
-    return fullScreenCameraId != null;
+function updateCameraTopButtonState() {
+    if (!fullScreenMode && !isSingleView()) {
+        $('div.camera-top-button.full-screen').show();
+        $('div.camera-top-button.single-camera').show();
+        $('div.camera-top-button.multi-camera').hide();
+    } else if (!fullScreenMode && isSingleView()) {
+        $('div.camera-top-button.full-screen').show();
+        $('div.camera-top-button.single-camera').hide();
+        $('div.camera-top-button.multi-camera').show();
+    } else {
+        $('div.camera-top-button.full-screen').hide();
+        $('div.camera-top-button.single-camera').show();
+        $('div.camera-top-button.multi-camera').show();
+    }
+}
+
+function isSingleView() {
+    return singleViewCameraId !== null;
 }
 
 function refreshCameraFrames() {
@@ -5240,8 +5328,8 @@ function refreshCameraFrames() {
     }
 
     var cameraFrames;
-    if (fullScreenCameraId != null && fullScreenCameraId >= 0) {
-        cameraFrames = getCameraFrame(fullScreenCameraId);
+    if (singleViewCameraId != null && singleViewCameraId >= 0) {
+        cameraFrames = getCameraFrame(singleViewCameraId);
     }
     else {
         cameraFrames = getCameraFrames();
@@ -5291,6 +5379,8 @@ function refreshCameraFrames() {
             refreshCameraFrame(cameraId, this.img, serverSideResize);
             this.refreshDivider = 0;
         }
+
+        cameraFrameRatios[cameraId] = this.img.naturalWidth > 0 ? this.img.naturalHeight / this.img.naturalWidth : 1;
     });
 
     setTimeout(refreshCameraFrames, refreshInterval);
@@ -5360,5 +5450,12 @@ $(document).ready(function () {
 
     $(window).resize(function () {
         updateLayout();
+    });
+
+    document.addEventListener('fullscreenchange', function() {
+        if (!isBrowserFullScreen()) {
+            // Fullscreen mode end via browser controls
+            doExitFullScreenCamera(wasInSingleModeBeforeFullScreen);
+        }
     });
 });

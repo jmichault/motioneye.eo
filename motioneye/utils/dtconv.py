@@ -1,4 +1,3 @@
-
 # Copyright (c) 2020 Vlsarro
 # Copyright (c) 2013 Calin Crisan
 # This file is part of motionEye.
@@ -17,9 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import datetime
-
 from typing import Union
-
 
 __all__ = ('pretty_date_time', 'pretty_date', 'pretty_duration', 'pretty_time')
 
@@ -32,18 +29,18 @@ def pretty_date_time(date_time, tzinfo=None, short=False):
         return pretty_date_time(datetime.datetime.fromtimestamp(date_time))
 
     if short:
-        text = u'{day} {month}, {hm}'.format(
+        text = '{day} {month}, {hm}'.format(
             day=date_time.day,
             month=date_time.strftime('%b'),
-            hm=date_time.strftime('%H:%M')
+            hm=date_time.strftime('%H:%M'),
         )
 
     else:
-        text = u'{day} {month} {year}, {hm}'.format(
+        text = '{day} {month} {year}, {hm}'.format(
             day=date_time.day,
             month=date_time.strftime('%B'),
             year=date_time.year,
-            hm=date_time.strftime('%H:%M')
+            hm=date_time.strftime('%H:%M'),
         )
 
     if tzinfo:
@@ -56,7 +53,7 @@ def pretty_date_time(date_time, tzinfo=None, short=False):
             tz += '-'
             offset = -offset
 
-        tz += '%.2d' % (offset / 3600) + ':%.2d' % ((offset % 3600) / 60)
+        tz += '%.2d' % (offset // 3600) + ':%.2d' % ((offset % 3600) // 60)
 
         text += ' (' + tz + ')'
 
@@ -70,10 +67,8 @@ def pretty_date(d: Union[datetime.date, int]) -> str:
     if isinstance(d, int):
         return pretty_date(datetime.datetime.fromtimestamp(d))
 
-    return u'{day} {month} {year}'.format(
-        day=d.day,
-        month=_(d.strftime('%B')),
-        year=d.year
+    return '{day} {month} {year}'.format(
+        day=d.day, month=_(d.strftime('%B')), year=d.year
     )
 
 
@@ -82,13 +77,11 @@ def pretty_time(t: Union[datetime.time, datetime.timedelta]) -> str:
         return ''
 
     if isinstance(t, datetime.timedelta):
-        hour = int(t.seconds / 3600)
-        minute = int((t.seconds % 3600) / 60)
+        hour = t.seconds // 3600
+        minute = (t.seconds % 3600) // 60
         t = datetime.time(hour=hour, minute=minute)
 
-    return '{hm}'.format(
-        hm=t.strftime('%H:%M')
-    )
+    return '{hm}'.format(hm=t.strftime('%H:%M'))
 
 
 def pretty_duration(duration):
@@ -105,11 +98,11 @@ def pretty_duration(duration):
     else:
         negative = False
 
-    days = int(duration / 86400)
+    days = duration // 86400
     duration %= 86400
-    hours = int(duration / 3600)
+    hours = duration // 3600
     duration %= 3600
-    minutes = int(duration / 60)
+    minutes = duration // 60
     duration %= 60
     seconds = duration
 

@@ -1,19 +1,18 @@
 from unittest import mock
 
-from tornado.web import Application
 from tornado.testing import AsyncHTTPTestCase
-
+from tornado.web import Application
 
 __all__ = ('AsyncMock', 'WebTestCase')
 
 
 class AsyncMock(mock.MagicMock):
-
     def __call__(self, *args, **kwargs):
-        sup = super(AsyncMock, self)
+        sup = super()
 
         async def coro():
             return sup.__call__(*args, **kwargs)
+
         return coro()
 
     def __await__(self):

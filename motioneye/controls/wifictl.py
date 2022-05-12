@@ -1,4 +1,3 @@
-
 # Copyright (c) 2013 Calin Crisan
 # This file is part of motionEye.
 #
@@ -6,20 +5,20 @@
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>. 
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
 import re
+
 from motioneye import settings
 from motioneye.config import additional_config, additional_section
-
 
 WPA_SUPPLICANT_CONF = settings.WPA_SUPPLICANT_CONF  # @UndefinedVariable
 
@@ -28,32 +27,28 @@ def _get_wifi_settings():
     # will return the first configured network
 
     logging.debug('reading wifi settings from %s' % WPA_SUPPLICANT_CONF)
-    
+
     try:
-        conf_file = open(WPA_SUPPLICANT_CONF, 'r')
-    
+        conf_file = open(WPA_SUPPLICANT_CONF)
+
     except Exception as e:
-        logging.error('could open wifi settings file %(path)s: %(msg)s' % {'path': WPA_SUPPLICANT_CONF, 'msg': str(e)})
-        
-        return {
-            'wifiEnabled': False,
-            'wifiNetworkName': '',
-            'wifiNetworkKey': ''
-        }
-    
+        logging.error(f'could open wifi settings file {WPA_SUPPLICANT_CONF}: {str(e)}')
+
+        return {'wifiEnabled': False, 'wifiNetworkName': '', 'wifiNetworkKey': ''}
+
     lines = conf_file.readlines()
     conf_file.close()
-    
+
     ssid = psk = ''
     in_section = False
     for line in lines:
         line = line.strip()
         if line.startswith('#'):
             continue
-        
+
         if line.endswith('{'):
             in_section = True
-            
+
         elif line.startswith('}'):
             in_section = False
             break
@@ -62,57 +57,55 @@ def _get_wifi_settings():
             m = re.search(r'ssid\s*=\s*"(.*?)"', line)
             if m:
                 ssid = m.group(1)
-    
+
             m = re.search(r'psk\s*=\s*"?([^"]*)"?', line)
             if m:
                 psk = m.group(1)
 
     if ssid:
         logging.debug('wifi is enabled (ssid = "%s")' % ssid)
-    
-        return {
-            'wifiEnabled': True,
-            'wifiNetworkName': ssid,
-            'wifiNetworkKey': psk
-        }
+
+        return {'wifiEnabled': True, 'wifiNetworkName': ssid, 'wifiNetworkKey': psk}
 
     else:
         logging.debug('wifi is disabled')
 
-        return {
-            'wifiEnabled': False,
-            'wifiNetworkName': ssid,
-            'wifiNetworkKey': psk
-        }
+        return {'wifiEnabled': False, 'wifiNetworkName': ssid, 'wifiNetworkKey': psk}
 
 
 def _set_wifi_settings(s):
     s.setdefault('wifiEnabled', False)
     s.setdefault('wifiNetworkName', '')
     s.setdefault('wifiNetworkKey', '')
-    
-    logging.debug('writing wifi settings to %s: enabled=%s, ssid="%s"' % (
-            WPA_SUPPLICANT_CONF, s['wifiEnabled'], s['wifiNetworkName']))
+
+    logging.debug(
+        'writing wifi settings to {}: enabled={}, ssid="{}"'.format(
+            WPA_SUPPLICANT_CONF, s['wifiEnabled'], s['wifiNetworkName']
+        )
+    )
 
     enabled = s['wifiEnabled']
     ssid = s['wifiNetworkName']
     psk = s['wifiNetworkKey']
     psk_is_hex = re.match('^[a-f0-9]{64}$', psk, re.I) is not None
     key_mgmt = None if psk else 'NONE'
-    
+
     # will update the first configured network
     try:
-        conf_file = open(WPA_SUPPLICANT_CONF, 'r')
-    
+        conf_file = open(WPA_SUPPLICANT_CONF)
+
     except Exception as e:
-        logging.error('could open wifi settings file %(path)s: %(msg)s' % {
-                'path': WPA_SUPPLICANT_CONF, 'msg': str(e)})
+        logging.error(
+            'could open wifi settings file {path}: {msg}'.format(
+                path=WPA_SUPPLICANT_CONF, msg=str(e)
+            )
+        )
 
         return
-    
+
     lines = conf_file.readlines()
     conf_file.close()
-    
+
     in_section = False
     found_ssid = False
     found_psk = False
@@ -123,7 +116,7 @@ def _set_wifi_settings(s):
         if line.startswith('#'):
             i += 1
             continue
-        
+
         if line.endswith('{'):
             in_section = True
 
@@ -139,17 +132,17 @@ def _set_wifi_settings(s):
                     lines.insert(i, '    psk="' + psk + '"\n')
             if enabled and not found_key_mgmt and key_mgmt:
                 lines.insert(i, '    key_mgmt=' + key_mgmt + '\n')
-            
+
             found_psk = found_ssid = found_key_mgmt = True
-            
+
             break
-            
+
         elif in_section:
             if enabled:
                 if re.match(r'ssid\s*=\s*".*?"', line):
                     lines[i] = '    ssid="' + ssid + '"\n'
                     found_ssid = True
-                
+
                 elif re.match(r'psk\s*=.*', line):
                     if psk:
                         if psk_is_hex:
@@ -159,20 +152,22 @@ def _set_wifi_settings(s):
                             lines[i] = '    psk="' + psk + '"\n'
 
                         found_psk = True
-                
+
                     else:
                         lines.pop(i)
                         i -= 1
-        
+
                 elif re.match(r'key_mgmt\s*=\s*.*?', line) and key_mgmt:
                     lines[i] = '    key_mgmt=' + key_mgmt + '\n'
                     found_key_mgmt = True
-        
+
             else:  # wifi disabled
-                if re.match(r'ssid\s*=\s*".*?"', line) or re.match(r'psk\s*=\s*".*?"', line):
+                if re.match(r'ssid\s*=\s*".*?"', line) or re.match(
+                    r'psk\s*=\s*".*?"', line
+                ):
                     lines.pop(i)
                     i -= 1
-        
+
         i += 1
 
     if enabled and not found_ssid:
@@ -190,13 +185,16 @@ def _set_wifi_settings(s):
 
     try:
         conf_file = open(WPA_SUPPLICANT_CONF, 'w')
-    
+
     except Exception as e:
-        logging.error('could open wifi settings file %(path)s: %(msg)s' % {
-                'path': WPA_SUPPLICANT_CONF, 'msg': str(e)})
+        logging.error(
+            'could open wifi settings file {path}: {msg}'.format(
+                path=WPA_SUPPLICANT_CONF, msg=str(e)
+            )
+        )
 
         return
-    
+
     for line in lines:
         conf_file.write(line)
 
@@ -205,10 +203,7 @@ def _set_wifi_settings(s):
 
 @additional_section
 def network():
-    return {
-        'label': 'Network',
-        'description': 'configure the network connection'
-    }
+    return {'label': 'Network', 'description': 'configure the network connection'}
 
 
 @additional_config
@@ -224,7 +219,7 @@ def wifi_enabled():
         'reboot': True,
         'get': _get_wifi_settings,
         'set': _set_wifi_settings,
-        'get_set_dict': True
+        'get_set_dict': True,
     }
 
 
@@ -243,7 +238,7 @@ def wifi_network_name():
         'depends': ['wifiEnabled'],
         'get': _get_wifi_settings,
         'set': _set_wifi_settings,
-        'get_set_dict': True
+        'get_set_dict': True,
     }
 
 
@@ -262,5 +257,5 @@ def wifi_network_key():
         'depends': ['wifiEnabled'],
         'get': _get_wifi_settings,
         'set': _set_wifi_settings,
-        'get_set_dict': True
+        'get_set_dict': True,
     }

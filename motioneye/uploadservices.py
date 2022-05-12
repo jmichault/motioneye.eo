@@ -14,29 +14,29 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import datetime
 import ftplib
+import io
 import json
 import logging
 import mimetypes
 import os
 import os.path
-import io
 import time
-import urllib.request
-import urllib.error
-import urllib.parse
-import pycurl
-import boto3
+from urllib.error import HTTPError
+from urllib.parse import quote, urlencode
+from urllib.request import Request
 
-from motioneye import settings
-from motioneye import utils
-import datetime
+import boto3
+import pycurl
+
+from motioneye import settings, utils
 
 _STATE_FILE_NAME = 'uploadservices.json'
 _services = None
 
 
-class UploadService(object):
+class UploadService:
     MAX_FILE_SIZE = 1024 * 1024 * 1024  # 1GB
 
     NAME = 'base'
@@ -60,29 +60,32 @@ class UploadService(object):
         if target_dir:
             target_dir = os.path.realpath(target_dir)
             rel_filename = os.path.realpath(filename)
-            rel_filename = rel_filename[len(target_dir):]
+            rel_filename = rel_filename[len(target_dir) :]
 
             while rel_filename.startswith('/'):
                 rel_filename = rel_filename[1:]
 
-            self.debug('uploading file "%s/%s" to %s' % (target_dir, rel_filename, self))
+            self.debug(f'uploading file "{target_dir}/{rel_filename}" to {self}')
 
         else:
             rel_filename = os.path.basename(filename)
 
-            self.debug('uploading file "%s" to %s' % (filename, self))
+            self.debug(f'uploading file "{filename}" to {self}')
 
         try:
             st = os.stat(filename)
 
         except Exception as e:
-            msg = 'failed to open file "%s": %s' % (filename, e)
+            msg = f'failed to open file "{filename}": {e}'
             self.error(msg)
             raise Exception(msg)
 
         if st.st_size > self.MAX_FILE_SIZE:
-            msg = 'file "%s" is too large (%sMB/%sMB)' % \
-                    (filename, st.st_size / 1024 / 1024, self.MAX_FILE_SIZE / 1024 / 1024)
+            msg = 'file "{}" is too large ({}MB/{}MB)'.format(
+                filename,
+                st.st_size / 1024 / 1024,
+                self.MAX_FILE_SIZE / 1024 / 1024,
+            )
 
             self.error(msg)
             raise Exception(msg)
@@ -91,19 +94,19 @@ class UploadService(object):
             f = open(filename, 'rb')
 
         except Exception as e:
-            msg = 'failed to open file "%s": %s' % (filename, e)
+            msg = f'failed to open file "{filename}": {e}'
             self.error(msg)
             raise Exception(msg)
 
         data = f.read()
-        self.debug('size of "%s" is %.3fMB' % (filename, len(data) / 1024.0 / 1024))
+        self.debug(f'size of "{filename}" is {len(data) / 1024.0 / 1024:.3f}MB')
 
         mime_type = mimetypes.guess_type(filename)[0] or 'image/jpeg'
-        self.debug('mime type of "%s" is "%s"' % (filename, mime_type))
+        self.debug(f'mime type of "{filename}" is "{mime_type}"')
 
         self.upload_data(rel_filename, mime_type, data, ctime, camera_name)
 
-        self.debug('file "%s" successfully uploaded' % filename)
+        self.debug(f'file "{filename}" successfully uploaded')
 
     def upload_data(self, filename, mime_type, data, ctime, camera_name):
         pass
@@ -148,7 +151,9 @@ class GoogleBase:
     AUTH_URL = 'https://accounts.google.com/o/oauth2/auth'
     TOKEN_URL = 'https://accounts.google.com/o/oauth2/token'
 
-    CLIENT_ID = '349038943026-m16svdadjrqc0c449u4qv71v1m1niu5o.apps.googleusercontent.com'
+    CLIENT_ID = (
+        '349038943026-m16svdadjrqc0c449u4qv71v1m1niu5o.apps.googleusercontent.com'
+    )
     CLIENT_NOT_SO_SECRET = 'jjqbWmICpA0GvbhsJB3okX7s'
 
     def _init(self):
@@ -165,10 +170,10 @@ class GoogleBase:
             'redirect_uri': 'urn:ietf:wg:oauth:2.0:oob',
             'response_type': 'code',
             'client_id': cls.CLIENT_ID,
-            'access_type': 'offline'
+            'access_type': 'offline',
         }
 
-        return cls.AUTH_URL + '?' + urllib.parse.urlencode(query)
+        return cls.AUTH_URL + '?' + urlencode(query)
 
     def _test_access(self):
         try:
@@ -209,24 +214,28 @@ class GoogleBase:
                 self.save()
 
             except Exception as e:
-                self.error('failed to obtain credentials: %s' % e)
+                self.error(f'failed to obtain credentials: {e}')
                 raise
 
         headers = headers or {}
-        headers['Authorization'] = 'Bearer %s' % self._credentials['access_token']
+        headers['Authorization'] = f'Bearer {self._credentials["access_token"]}'
 
-        self.debug('requesting %s' % url)
-        request = urllib.request.Request(url, data=body, headers=headers)
+        self.debug(f'requesting {url}')
+        request = Request(url, data=body, headers=headers)
         if method:
             request.get_method = lambda: method
         try:
             response = utils.urlopen(request)
 
-        except urllib.error.HTTPError as e:
-            if e.code == 401 and retry_auth:  # unauthorized, access token may have expired
+        except HTTPError as e:
+            if (
+                e.code == 401 and retry_auth
+            ):  # unauthorized, access token may have expired
                 try:
                     self.debug('credentials have probably expired, refreshing them')
-                    self._credentials = self._refresh_credentials(self._credentials['refresh_token'])
+                    self._credentials = self._refresh_credentials(
+                        self._credentials['refresh_token']
+                    )
                     self.save()
 
                     # retry the request with refreshed credentials
@@ -244,11 +253,11 @@ class GoogleBase:
                 except Exception:
                     msg = str(e)
 
-                self.error('request failed: %s' % msg)
+                self.error(f'request failed: {msg}')
                 raise Exception(msg)
 
         except Exception as e:
-            self.error('request failed: %s' % e)
+            self.error(f'request failed: {e}')
             raise
 
         return response.read()
@@ -264,9 +273,7 @@ class GoogleBase:
         return response
 
     def _request_credentials(self, authorization_key):
-        headers = {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
 
         body = {
             'code': authorization_key,
@@ -274,53 +281,55 @@ class GoogleBase:
             'client_id': self.CLIENT_ID,
             'client_secret': self.CLIENT_NOT_SO_SECRET,
             'scope': self.SCOPE,
-            'grant_type': 'authorization_code'
+            'grant_type': 'authorization_code',
         }
-        body = urllib.parse.urlencode(body)
+        body = urlencode(body).encode()
 
-        request = urllib.request.Request(self.TOKEN_URL, data=body, headers=headers)
+        request = Request(self.TOKEN_URL, data=body, headers=headers)
 
         try:
             response = utils.urlopen(request)
 
-        except urllib.error.HTTPError as e:
+        except HTTPError as e:
             error = json.load(e)
-            raise Exception(error.get('error_description') or error.get('error') or str(e))
+            raise Exception(
+                error.get('error_description') or error.get('error') or str(e)
+            )
 
         data = json.load(response)
 
         return {
             'access_token': data['access_token'],
-            'refresh_token': data['refresh_token']
+            'refresh_token': data['refresh_token'],
         }
 
     def _refresh_credentials(self, refresh_token):
-        headers = {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
 
         body = {
             'refresh_token': refresh_token,
             'client_id': self.CLIENT_ID,
             'client_secret': self.CLIENT_NOT_SO_SECRET,
-            'grant_type': 'refresh_token'
+            'grant_type': 'refresh_token',
         }
-        body = urllib.parse.urlencode(body)
+        body = urlencode(body).encode()
 
-        request = urllib.request.Request(self.TOKEN_URL, data=body, headers=headers)
+        request = Request(self.TOKEN_URL, data=body, headers=headers)
 
         try:
             response = utils.urlopen(request)
 
-        except urllib.error.HTTPError as e:
+        except HTTPError as e:
             error = json.load(e)
-            raise Exception(error.get('error_description') or error.get('error') or str(e))
+            raise Exception(
+                error.get('error_description') or error.get('error') or str(e)
+            )
 
         data = json.load(response)
 
         return {
             'access_token': data['access_token'],
-            'refresh_token': data.get('refresh_token', refresh_token)
+            'refresh_token': data.get('refresh_token', refresh_token),
         }
 
 
@@ -328,8 +337,12 @@ class GoogleDrive(UploadService, GoogleBase):
     NAME = 'gdrive'
 
     SCOPE = 'https://www.googleapis.com/auth/drive.file'
-    CHILDREN_URL = 'https://www.googleapis.com/drive/v2/files/%(parent_id)s/children?q=%(query)s'
-    CHILDREN_QUERY = "'%(parent_id)s' in parents and title = '%(child_name)s' and trashed = false"
+    CHILDREN_URL = (
+        'https://www.googleapis.com/drive/v2/files/%(parent_id)s/children?q=%(query)s'
+    )
+    CHILDREN_QUERY = (
+        "'%(parent_id)s' in parents and title = '%(child_name)s' and trashed = false"
+    )
     UPLOAD_URL = 'https://www.googleapis.com/upload/drive/v2/files?uploadType=multipart'
     CREATE_FOLDER_URL = 'https://www.googleapis.com/drive/v2/files'
 
@@ -353,21 +366,27 @@ class GoogleDrive(UploadService, GoogleBase):
         path = os.path.dirname(filename)
         filename = os.path.basename(filename)
 
-        metadata = {
-            'title': filename,
-            'parents': [{'id': self._get_folder_id(path)}]
-        }
+        metadata = {'title': filename, 'parents': [{'id': self._get_folder_id(path)}]}
 
-        body = ['--' + self.BOUNDARY, 'Content-Type: application/json; charset=UTF-8', '', json.dumps(metadata), '',
-                '--' + self.BOUNDARY, 'Content-Type: %s' % mime_type, '', '']
+        body = [
+            '--' + self.BOUNDARY,
+            'Content-Type: application/json; charset=UTF-8',
+            '',
+            json.dumps(metadata),
+            '',
+            '--' + self.BOUNDARY,
+            f'Content-Type: {mime_type}',
+            '',
+            '',
+        ]
 
         body = '\r\n'.join(body)
         body += data
-        body += '\r\n--%s--' % self.BOUNDARY
+        body += f'\r\n--{self.BOUNDARY}--'
 
         headers = {
-            'Content-Type': 'multipart/related; boundary="%s"' % self.BOUNDARY,
-            'Content-Length': len(body)
+            'Content-Type': f'multipart/related; boundary="{self.BOUNDARY}"',
+            'Content-Length': len(body),
         }
 
         self._request(self.UPLOAD_URL, body, headers)
@@ -391,7 +410,7 @@ class GoogleDrive(UploadService, GoogleBase):
         location += path
 
         if not folder_id or (now - folder_id_time > self.FOLDER_ID_LIFE_TIME):
-            self.debug('finding folder id for location "%s"' % location)
+            self.debug(f'finding folder id for location "{location}"')
             folder_id = self._get_folder_id_by_path(location)
 
             self._folder_ids[path] = folder_id
@@ -413,8 +432,11 @@ class GoogleDrive(UploadService, GoogleBase):
 
     def _get_folder_id_by_name(self, parent_id, child_name, create=True):
         if parent_id:
-            query = self.CHILDREN_QUERY % {'parent_id': parent_id, 'child_name': child_name}
-            query = urllib.parse.quote(query)
+            query = self.CHILDREN_QUERY % {
+                'parent_id': parent_id,
+                'child_name': child_name,
+            }
+            query = quote(query)
 
         else:
             query = ''
@@ -438,12 +460,14 @@ class GoogleDrive(UploadService, GoogleBase):
         items = response.get('items')
         if not items:
             if create:
-                self.debug('folder with name "%s" does not exist, creating it' % child_name)
+                self.debug(
+                    f'folder with name "{child_name}" does not exist, creating it'
+                )
                 self._create_folder(parent_id, child_name)
                 return self._get_folder_id_by_name(parent_id, child_name, create=False)
 
             else:
-                msg = 'folder with name "%s" does not exist' % child_name
+                msg = f'folder with name "{child_name}" does not exist'
                 self.error(msg)
                 raise Exception(msg)
 
@@ -453,14 +477,12 @@ class GoogleDrive(UploadService, GoogleBase):
         metadata = {
             'title': child_name,
             'parents': [{'id': parent_id}],
-            'mimeType': 'application/vnd.google-apps.folder'
+            'mimeType': 'application/vnd.google-apps.folder',
         }
 
         body = json.dumps(metadata)
 
-        headers = {
-            'Content-Type': 'application/json; charset=UTF-8'
-        }
+        headers = {'Content-Type': 'application/json; charset=UTF-8'}
 
         self._request(self.CREATE_FOLDER_URL, body, headers)
 
@@ -471,22 +493,24 @@ class GoogleDrive(UploadService, GoogleBase):
         removed_count = 0
         folder_id = self._get_folder_id_by_name('root', cloud_dir, False)
         children = self._get_children(folder_id)
-        self.info('found %s/%s folder(s) in local/cloud' % (len(local_folders), len(children)))
-        self.debug('local %s' % local_folders)
+        self.info(
+            f'found {len(local_folders)}/{len(children)} folder(s) in local/cloud'
+        )
+        self.debug(f'local {local_folders}')
         for child in children:
             id = child['id']
             name = self._get_file_title(id)
-            self.debug("cloud '%s'" % name)
+            self.debug(f"cloud '{name}'")
             to_delete = not exist_in_local(name, local_folders)
             if to_delete and self._delete_file(id):
                 removed_count += 1
-                self.info("deleted a cloud folder '%s'" % name)
+                self.info(f"deleted a cloud folder '{name}'")
 
-        self.info('deleted %s cloud folder(s)' % removed_count)
+        self.info(f'deleted {removed_count} cloud folder(s)')
         return removed_count
 
     def _get_children(self, file_id):
-        url = '%s/%s/children' % (self.CREATE_FOLDER_URL, file_id)
+        url = f'{self.CREATE_FOLDER_URL}/{file_id}/children'
         response = self._request(url)
 
         try:
@@ -499,13 +523,13 @@ class GoogleDrive(UploadService, GoogleBase):
         return response['items']
 
     def _delete_file(self, file_id):
-        url = '%s/%s' % (self.CREATE_FOLDER_URL, file_id)
+        url = f'{self.CREATE_FOLDER_URL}/{file_id}'
         response = self._request(url, None, None, True, 'DELETE')
         succeeded = response == ""
         return succeeded
 
     def _get_file_metadata(self, file_id):
-        url = '%s/%s' % (self.CREATE_FOLDER_URL, file_id)
+        url = f'{self.CREATE_FOLDER_URL}/{file_id}'
         response = self._request(url)
 
         try:
@@ -545,17 +569,17 @@ class GooglePhoto(UploadService, GoogleBase):
         dayinfo = datetime.datetime.fromtimestamp(ctime).strftime('%Y-%m-%d')
         uploadname = dayinfo + '-' + filename
 
-        body = data 
+        body = data
 
         headers = {
             'Content-Type': 'application/octet-stream',
             'X-Goog-Upload-File-Name': uploadname,
-            'X-Goog-Upload-Protocol': 'raw'
+            'X-Goog-Upload-Protocol': 'raw',
         }
 
         uploadToken = self._request(self.GOOGLE_PHOTO_API + 'uploads', body, headers)
         response = self._create_media(uploadToken, camera_name)
-        self.debug('response %s' % response['mediaItem'])
+        self.debug(f'response {response["mediaItem"]}')
 
     def dump(self):
         return self._dump()
@@ -568,10 +592,10 @@ class GooglePhoto(UploadService, GoogleBase):
 
         folder_id = self._folder_ids.get(location)
 
-        self.debug('_get_folder_id(%s, %s, %s)' % (path, location, folder_id))
+        self.debug(f'_get_folder_id({path}, {location}, {folder_id})')
 
         if not folder_id:
-            self.debug('finding album with title "%s"' % location)
+            self.debug(f'finding album with title "{location}"')
             folder_id = self._get_folder_id_by_name(location)
 
             self._folder_ids[location] = folder_id
@@ -587,64 +611,60 @@ class GooglePhoto(UploadService, GoogleBase):
                 count = len(albumsWithName)
                 if count > 0:
                     albumId = albumsWithName[0].get('id')
-                    self.debug('found %s existing album(s) "%s" taking first id "%s"' % (count, name, albumId))
+                    self.debug(
+                        f'found {count} existing album(s) "{name}" taking first id "{albumId}"'
+                    )
                     return albumId
 
             # create album
             response = self._create_folder(None, name)
             albumId = response.get('id')
-            self.info('Album "%s" was created successfully with id "%s"' % (name, albumId))
+            self.info(f'Album "{name}" was created successfully with id "{albumId}"')
             return albumId
 
         except Exception as e:
-            self.error("_get_folder_id_by_name() failed: %s" % e)
+            self.error(f"_get_folder_id_by_name() failed: {e}")
             raise
 
     def _create_folder(self, parent_id, child_name):
-        metadata = {
-            'album': {
-                'title': child_name
-            }
-        }
+        metadata = {'album': {'title': child_name}}
 
         body = json.dumps(metadata)
 
-        headers = {
-            'Content-Type': 'application/json'
-        }
+        headers = {'Content-Type': 'application/json'}
 
         response = self._request_json(self.GOOGLE_PHOTO_API + 'albums', body, headers)
         return response
 
     def _create_media(self, uploadToken, camera_name):
-        description = 'captured by motionEye camera' + (' "%s"' % camera_name if camera_name else '')
+        description = 'captured by motionEye camera' + (
+            f' "{camera_name}"' if camera_name else ''
+        )
 
         metadata = {
             'albumId': self._get_folder_id(),
             'newMediaItems': [
                 {
                     'description': description,
-                    'simpleMediaItem': {
-                        'uploadToken': uploadToken
-                    }
+                    'simpleMediaItem': {'uploadToken': uploadToken},
                 }
-            ]
+            ],
         }
 
         body = json.dumps(metadata)
 
-        headers = {
-            'Content-Type': 'application/json'
-        }
+        headers = {'Content-Type': 'application/json'}
 
-        response = self._request_json(self.GOOGLE_PHOTO_API + 'mediaItems:batchCreate', body, headers)
+        response = self._request_json(
+            self.GOOGLE_PHOTO_API + 'mediaItems:batchCreate', body, headers
+        )
         return response.get('newMediaItemResults')[0]
 
     def _get_albums(self):
         response = self._request_json(self.GOOGLE_PHOTO_API + 'albums')
 
         albums = response.get('albums')
-        self.debug('got %s album(s)' % len(albums))
+        self.debug(f'got {len(albums)} album(s)')
         return albums
 
     def _filter_albums(self, albums, title):
@@ -674,17 +694,18 @@ class Dropbox(UploadService):
     def get_authorize_url(cls):
         query = {
             'response_type': 'code',
-            'client_id': cls.CLIENT_ID
+            'client_id': cls.CLIENT_ID,
+            'token_access_type': 'offline',
         }
 
-        return cls.AUTH_URL + '?' + urllib.parse.urlencode(query)
+        return cls.AUTH_URL + '?' + urlencode(query)
 
     def test_access(self):
         body = {
             'path': self._clean_location(),
             'recursive': False,
             'include_media_info': False,
-            'include_deleted': False
+            'include_deleted': False,
         }
 
         body = json.dumps(body)
@@ -708,12 +729,12 @@ class Dropbox(UploadService):
             'path': os.path.join(self._clean_location(), filename),
             'mode': 'add',
             'autorename': True,
-            'mute': False
+            'mute': False,
         }
 
         headers = {
             'Content-Type': 'application/octet-stream',
-            'Dropbox-API-Arg': json.dumps(metadata)
+            'Dropbox-API-Arg': json.dumps(metadata),
         }
 
         self._request(self.UPLOAD_URL, data, headers)
@@ -722,7 +743,7 @@ class Dropbox(UploadService):
         return {
             'location': self._location,
             'credentials': self._credentials,
-            'authorization_key': self._authorization_key
+            'authorization_key': self._authorization_key,
         }
 
     def load(self, data):
@@ -757,22 +778,26 @@ class Dropbox(UploadService):
                 self.save()
 
             except Exception as e:
-                self.error('failed to obtain credentials: %s' % e)
+                self.error(f'failed to obtain credentials: {e}')
                 raise
 
         headers = headers or {}
-        headers['Authorization'] = 'Bearer %s' % self._credentials['access_token']
+        headers['Authorization'] = f'Bearer {self._credentials["access_token"]}'
 
-        self.debug('requesting %s' % url)
-        request = urllib.request.Request(url, data=body, headers=headers)
+        self.debug(f'requesting {url}')
+        request = Request(url, data=body, headers=headers)
         try:
             response = utils.urlopen(request)
 
-        except urllib.error.HTTPError as e:
-            if e.code == 401 and retry_auth:  # unauthorized, access token may have expired
+        except HTTPError as e:
+            if (
+                e.code == 401 and retry_auth
+            ):  # unauthorized, access token may have expired
                 try:
                     self.debug('credentials have probably expired, refreshing them')
-                    self._credentials = self._request_credentials(self._authorization_key)
+                    self._credentials = self._refresh_credentials(
+                        self._credentials['refresh_token']
+                    )
                     self.save()
 
                     # retry the request with refreshed credentials
@@ -783,46 +808,76 @@ class Dropbox(UploadService):
                     raise
 
             elif str(e).count('not_found'):
-                msg = 'folder "%s" not found' % self._location
+                msg = f'folder "{self._location}" not found'
                 self.error(msg)
                 raise Exception(msg)
 
             else:
-                self.error('request failed: %s' % e)
+                self.error(f'request failed: {e}')
                 raise
 
         except Exception as e:
-            self.error('request failed: %s' % e)
+            self.error(f'request failed: {e}')
             raise
 
         return response.read()
 
     def _request_credentials(self, authorization_key):
-        headers = {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
 
         body = {
             'code': authorization_key,
             'client_id': self.CLIENT_ID,
             'client_secret': self.CLIENT_NOT_SO_SECRET,
-            'grant_type': 'authorization_code'
+            'grant_type': 'authorization_code',
         }
-        body = urllib.parse.urlencode(body)
+        body = urlencode(body).encode()
 
-        request = urllib.request.Request(self.TOKEN_URL, data=body, headers=headers)
+        request = Request(self.TOKEN_URL, data=body, headers=headers)
 
         try:
             response = utils.urlopen(request)
 
-        except urllib.error.HTTPError as e:
+        except HTTPError as e:
             error = json.load(e)
-            raise Exception(error.get('error_description') or error.get('error') or str(e))
+            raise Exception(
+                error.get('error_description') or error.get('error') or str(e)
+            )
 
         data = json.load(response)
 
         return {
-            'access_token': data['access_token']
+            'access_token': data['access_token'],
+            'refresh_token': data['refresh_token'],
+        }
+
+    def _refresh_credentials(self, refresh_token):
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+
+        body = {
+            'refresh_token': refresh_token,
+            'client_id': self.CLIENT_ID,
+            'client_secret': self.CLIENT_NOT_SO_SECRET,
+            'grant_type': 'refresh_token',
+        }
+        body = urlencode(body).encode()
+
+        request = Request(self.TOKEN_URL, data=body, headers=headers)
+
+        try:
+            response = utils.urlopen(request)
+
+        except HTTPError as e:
+            error = json.load(e)
+            raise Exception(
+                error.get('error_description') or error.get('error') or str(e)
+            )
+
+        data = json.load(response)
+
+        return {
+            'access_token': data['access_token'],
+            'refresh_token': data.get('refresh_token', refresh_token),
         }
 
 
@@ -850,7 +905,7 @@ class FTP(UploadService):
             conn.cwd(path)
 
             d = '%s' % int(time.time())
-            self.debug('creating test directory %s/%s' % (path, d))
+            self.debug(f'creating test directory {path}/{d}')
             conn.mkd(d)
             conn.rmd(d)
 
@@ -869,8 +924,8 @@ class FTP(UploadService):
         path = self._make_dirs(self._location + '/' + path, conn=conn)
         conn.cwd(path)
 
-        self.debug('uploading %s of %s bytes' % (filename, len(data)))
-        conn.storbinary('STOR %s' % filename, io.StringIO(data))
+        self.debug(f'uploading {filename} of {len(data)} bytes')
+        conn.storbinary(f'STOR {filename}', io.StringIO(data))
 
         self.debug('upload done')
 
@@ -880,7 +935,7 @@ class FTP(UploadService):
             'port': self._port,
             'username': self._username,
             'password': self._password,
-            'location': self._location
+            'location': self._location,
         }
 
     def load(self, data):
@@ -898,7 +953,11 @@ class FTP(UploadService):
     def _get_conn(self, create=False):
         now = time.time()
         if self._conn is None or now - self._conn_time > self.CONN_LIFE_TIME or create:
-            self.debug('creating connection to %s@%s:%s' % (self._username or 'anonymous', self._server, self._port))
+            self.debug(
+                'creating connection to {}@{}:{}'.format(
+                    self._username or 'anonymous', self._server, self._port
+                )
+            )
             self._conn = ftplib.FTP()
             self._conn.set_pasv(True)
             self._conn.connect(self._server, port=self._port)
@@ -946,12 +1005,12 @@ class SFTP(UploadService):
 
         except pycurl.error:
             curl_error = conn.errstr()
-            msg = 'cURL upload failed on {}: {}'.format(curl_url, curl_error)
+            msg = f'cURL upload failed on {curl_url}: {curl_error}'
             self.error(msg)
             raise
 
         else:
-            self.debug('upload done: {}'.format(curl_url))
+            self.debug(f'upload done: {curl_url}')
 
         finally:
             conn.close()
@@ -959,11 +1018,13 @@ class SFTP(UploadService):
     def test_access(self):
         filename = time.time()
         test_folder = "motioneye_test"
-        test_file = "/{}/{}".format(test_folder, filename)
+        test_file = f"/{test_folder}/{filename}"
 
         # list of commands to send after upload.
-        rm_operations = ['RM {}/{}'.format(self._location, test_file),
-                         'RMDIR {}/{}'.format(self._location, test_folder)]
+        rm_operations = [
+            f'RM {self._location}/{test_file}',
+            f'RMDIR {self._location}/{test_folder}',
+        ]
 
         conn = self._get_conn(test_file)
         conn.setopt(conn.POSTQUOTE, rm_operations)  # Executed after transfer.
@@ -974,7 +1035,7 @@ class SFTP(UploadService):
             return True
 
         except Exception as e:
-            logging.error('sftp connection failed: %s' % e)
+            logging.error(f'sftp connection failed: {e}')
 
             return str(e)
 
@@ -990,7 +1051,7 @@ class SFTP(UploadService):
             'port': self._port,
             'username': self._username,
             'password': self._password,
-            'location': self._location
+            'location': self._location,
         }
 
     def load(self, data):
@@ -1006,16 +1067,22 @@ class SFTP(UploadService):
             self._location = data['location']
 
     def _get_conn(self, filename, auth_type='password'):
-        sftp_url = 'sftp://{}:{}/{}/{}'.format(self._server, self._port,
-                                               self._location, filename)
+        sftp_url = 'sftp://{}:{}/{}/{}'.format(
+            self._server, self._port, self._location, filename
+        )
 
-        self.debug('creating sftp connection to {}@{}:{}'.format(
-                self._username, self._server, self._port))
+        self.debug(
+            'creating sftp connection to {}@{}:{}'.format(
+                self._username, self._server, self._port
+            )
+        )
 
         self._conn = pycurl.Curl()
         self._conn.setopt(self._conn.URL, sftp_url)
         self._conn.setopt(pycurl.CONNECTTIMEOUT, 10)
-        self._conn.setopt(self._conn.FTP_CREATE_MISSING_DIRS, 2)  # retry once if MKD fails
+        self._conn.setopt(
+            self._conn.FTP_CREATE_MISSING_DIRS, 2
+        )  # retry once if MKD fails
 
         auth_types = {
             'password': self._conn.SSH_AUTH_PASSWORD,
@@ -1027,7 +1094,7 @@ class SFTP(UploadService):
             self._conn.setopt(self._conn.SSH_AUTH_TYPES, auth_types[auth_type])
 
         except KeyError:
-            self.error("invalid SSH auth type: {}".format(auth_type))
+            self.error(f"invalid SSH auth type: {auth_type}")
             raise
 
         if auth_type == 'password':
@@ -1038,70 +1105,67 @@ class SFTP(UploadService):
 
         return self._conn
 
+
 class S3(UploadService):
     NAME = 's3'
 
     def __init__(self, camera_id):
-        self._location = None
-        self._authorization_key = None
-        self._secret_access_key = None
+        self._endpoint_url = None
+        self._access_key = None
+        self._secret_key = None
         self._bucket = None
         UploadService.__init__(self, camera_id)
-
 
     @classmethod
     def dump(self):
         return {
-            'location': self._location,
-            'authorization_key': self._authorization_key,
-            'secret_access_key': self._secret_access_key,
-            'bucket': self._bucket
+            'endpoint_url': self._endpoint_url,
+            'access_key': self._access_key,
+            'secret_key': self._secret_key,
+            'bucket': self._bucket,
         }
 
     def load(self, data):
-        if data.get('location') is not None:
-            self._location = data['location']
-        if data.get('authorization_key') is not None:
-            self._authorization_key = data['authorization_key']
-        if data.get('secret_access_key') is not None:
-            self._secret_access_key = data['secret_access_key']
+        if data.get('endpoint_url'):
+            self._endpoint_url = data['endpoint_url']
+        if data.get('access_key') is not None:
+            self._access_key = data['access_key']
+        if data.get('secret_key') is not None:
+            self._secret_key = data['secret_key']
         if data.get('bucket') is not None:
             self._bucket = data['bucket']
- 
-    def upload_data(self, filename, mime_type, data, ctime, camera_name):
-      path = os.path.dirname(filename)
-      basename = os.path.basename(filename)
 
-      # Create an S3 client
-      s3 = boto3.client(
-        's3',
-        aws_access_key_id=self._authorization_key,
-        aws_secret_access_key=self._secret_access_key,
-	region_name=self._location 
-      )
-
-      # Uploads the given file using a managed uploader, which will split up
-      # large files automatically and upload parts in parallel.
-      s3.upload_file(filename, self._bucket, basename)
-
-    def test_access(self):
-      try:
+    def upload_file(self, target_dir, filename, camera_name):
         # Create an S3 client
         s3 = boto3.client(
-          's3',
-          aws_access_key_id=self._authorization_key,
-          aws_secret_access_key=self._secret_access_key,
-          region_name=self._location 
+            's3',
+            endpoint_url=self._endpoint_url,
+            aws_access_key_id=self._access_key,
+            aws_secret_access_key=self._secret_key,
         )
-        response = s3.list_buckets()
-        logging.debug('Existing buckets:')
-        for bucket in response['Buckets']:
-            logging.debug(f'  {bucket["Name"]}')
-        return True
-      except Exception as e:
-            logging.error('S3 connection failed: %s' % e)
-            return str(e)
 
+        # Uploads the given file using a managed uploader, which will split up
+        # large files automatically and upload parts in parallel.
+        self.debug(f'uploading file "{filename}" to S3 bucket "{self._bucket}"')
+        s3.upload_file(filename, self._bucket, filename[len(target_dir) :])
+
+    def test_access(self):
+        try:
+            # Create an S3 client
+            s3 = boto3.client(
+                's3',
+                endpoint_url=self._endpoint_url,
+                aws_access_key_id=self._access_key,
+                aws_secret_access_key=self._secret_key,
+            )
+            response = s3.list_buckets()
+            logging.debug('Existing buckets:')
+            for bucket in response['Buckets']:
+                logging.debug(f'  {bucket["Name"]}')
+            return True
+        except Exception as e:
+            logging.error(f'S3 connection failed: {e}')
+            return str(e)
 
 
 def get_authorize_url(service_name):
@@ -1131,18 +1195,20 @@ def get(camera_id, service_name):
             service = cls(camera_id=camera_id)
             _services.setdefault(camera_id, {})[service_name] = service
 
-            logging.debug('created default upload service "%s" for camera with id "%s"' % (service_name, camera_id))
+            logging.debug(
+                f'created default upload service "{service_name}" for camera with id "{camera_id}"'
+            )
 
     return service
 
 
 def test_access(camera_id, service_name, data):
-    logging.debug('testing access to %s' % service_name)
+    logging.debug(f'testing access to {service_name}')
 
     service = get(camera_id, service_name)
     service.load(data)
     if not service:
-        return 'unknown upload service %s' % service_name
+        return f'unknown upload service {service_name}'
 
     return service.test_access()
 
@@ -1156,13 +1222,18 @@ def update(camera_id, service_name, settings):
 def upload_media_file(camera_id, camera_name, target_dir, service_name, filename):
     service = get(camera_id, service_name)
     if not service:
-        return logging.error('service "%s" not initialized for camera with id %s' % (service_name, camera_id))
+        return logging.error(
+            f'service "{service_name}" not initialized for camera with id {camera_id}'
+        )
 
     try:
         service.upload_file(target_dir, filename, camera_name)
 
     except Exception as e:
-        logging.error('failed to upload file "%s" with service %s: %s' % (filename, service, e), exc_info=True)
+        logging.error(
+            f'failed to upload file "{filename}" with service {service}: {e}',
+            exc_info=True,
+        )
 
 
 def _load():
@@ -1171,13 +1242,15 @@ def _load():
     file_path = os.path.join(settings.CONF_PATH, _STATE_FILE_NAME)
 
     if os.path.exists(file_path):
-        logging.debug('loading upload services state from "%s"...' % file_path)
+        logging.debug(f'loading upload services state from "{file_path}"...')
 
         try:
-            f = open(file_path, 'r')
+            f = open(file_path)
 
         except Exception as e:
-            logging.error('could not open upload services state file "%s": %s' % (file_path, e))
+            logging.error(
+                f'could not open upload services state file "{file_path}": {e}'
+            )
 
             return services
 
@@ -1185,7 +1258,9 @@ def _load():
             data = json.load(f)
 
         except Exception as e:
-            logging.error('could not read upload services state from file "%s": %s' % (file_path, e))
+            logging.error(
+                f'could not read upload services state from file "{file_path}": {e}'
+            )
 
             return services
 
@@ -1203,7 +1278,9 @@ def _load():
 
                     camera_services[name] = service
 
-                    logging.debug('loaded upload service "%s" for camera with id "%s"' % (name, camera_id))
+                    logging.debug(
+                        f'loaded upload service "{name}" for camera with id "{camera_id}"'
+                    )
 
     return services
 
@@ -1211,7 +1288,7 @@ def _load():
 def _save(services):
     file_path = os.path.join(settings.CONF_PATH, _STATE_FILE_NAME)
 
-    logging.debug('saving upload services state to "%s"...' % file_path)
+    logging.debug(f'saving upload services state to "{file_path}"...')
 
     data = {}
     for camera_id, camera_services in list(services.items()):
@@ -1222,7 +1299,7 @@ def _save(services):
         f = open(file_path, 'w')
 
     except Exception as e:
-        logging.error('could not open upload services state file "%s": %s' % (file_path, e))
+        logging.error(f'could not open upload services state file "{file_path}": {e}')
 
         return
 
@@ -1230,7 +1307,9 @@ def _save(services):
         json.dump(data, f, sort_keys=True, indent=4)
 
     except Exception as e:
-        logging.error('could not save upload services state to file "%s": %s' % (file_path, e))
+        logging.error(
+            f'could not save upload services state to file "{file_path}": {e}'
+        )
 
     finally:
         f.close()
@@ -1242,7 +1321,7 @@ def clean_cloud(local_dir, data, info):
     cloud_dir_user = info['cloud_dir']
     cloud_dir = [p.strip() for p in cloud_dir_user.split('/') if p.strip()][0]
 
-    logging.debug('clean_cloud(%s, %s, %s, %s)' % (camera_id, service_name, local_dir, cloud_dir))
+    logging.debug(f'clean_cloud({camera_id}, {service_name}, {local_dir}, {cloud_dir})')
 
     if service_name and local_dir and cloud_dir:
         local_folders = get_local_folders(local_dir)

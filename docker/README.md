@@ -31,8 +31,8 @@ host. You can easily accomplish this by using the commands below:
 docker volume create motioneye-config
 docker volume create motioneye-videos
 docker pull ccrisan/motioneye:master-amd64
-docker run
-  -rm \
+docker run \
+  --rm \
   -d \
   -p 8765:8765 \
   --hostname="motioneye" =
@@ -56,14 +56,15 @@ For the examples below, we assume user `motion` and group `motion` exist on the 
 
 ```bash
 RUN_USER="motion"
-RUN_UID="id -u ${RUN_USER}"
-RUN_GID="id -g ${RUN_USER}"
+RUN_UID=$(id -u ${RUN_USER})
+RUN_GID=$(id -g ${RUN_USER})
 TIMESTAMP="$(date '+%Y%m%d-%H%M')"
 
 cd /tmp && \
-git clone https://github.com/ccrisan/motioneye.git && \
+git clone https://github.com/motioneye-project/motioneye.git && \
 cd motioneye && \
 docker build \
+  --network host \
   --build-arg="RUN_UID=${RUN_UID?}" \
   --build-arg="RUN_GID=${RUN_GID?}" \
   -t "${USER?}/motioneye:${TIMESTAMP}" \

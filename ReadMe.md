@@ -2,7 +2,8 @@
 
 motionEye.eo is an online interface for the software [ _motion_ ](https://motion-project.github.io/), a video surveillance program with motion detection.
 
-It's a fork of [ _motionEye_ ](https://github.com/ccrisan/motioneye) with the addition of internationalization.  
+It's a fork of [ _motionEye_ ](https://github.com/motioneye-project/motioneye).  
+
 The supported languages are:
 * French
 * Esperanto
@@ -27,7 +28,7 @@ The following languages have been translated by machine translation and must be 
 
 You need :
 * a linux machine (tested only on debian bullseye).
-* python3 and python3-pip.
+* python3 (>= 3.7) and python3-pip.
 * recommended : python3-tornado ,python3-jinja2 ,python3-pillow ,python3-pycurl ,python3-babel ,python3-numpy ,python3-boto3
 
 ```

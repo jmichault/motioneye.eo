@@ -16,12 +16,15 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
-
 from functools import cmp_to_key
 
-from motioneye.update import get_all_versions, get_os_version, compare_versions, perform_update
 from motioneye.handlers.base import BaseHandler
-
+from motioneye.update import (
+    compare_versions,
+    get_all_versions,
+    get_os_version,
+    perform_update,
+)
 
 __all__ = ('UpdateHandler',)
 
@@ -32,21 +35,24 @@ class UpdateHandler(BaseHandler):
         logging.debug('listing versions')
 
         versions = get_all_versions()
-        current_version = get_os_version()[1]  # os version is returned as (name, version) tuple
-        recent_versions = [v for v in versions if compare_versions(v, current_version) > 0]
+        current_version = get_os_version()[
+            1
+        ]  # os version is returned as (name, version) tuple
+        recent_versions = [
+            v for v in versions if compare_versions(v, current_version) > 0
+        ]
         recent_versions.sort(key=cmp_to_key(compare_versions))
         update_version = recent_versions[-1] if recent_versions else None
 
-        self.finish_json({
-            'update_version': update_version,
-            'current_version': current_version
-        })
+        self.finish_json(
+            {'update_version': update_version, 'current_version': current_version}
+        )
 
     @BaseHandler.auth(admin=True)
     def post(self):
         version = self.get_argument('version')
 
-        logging.debug('performing update to version %(version)s' % {'version': version})
+        logging.debug(f'performing update to version {version}')
 
         result = perform_update(version)
 

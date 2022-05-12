@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) 2013 Calin Crisan
 # This file is part of motionEye.
 #
@@ -6,12 +5,12 @@
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -27,32 +26,31 @@ import time
 
 from tornado.ioloop import IOLoop
 from tornado.web import Application
-from .meyectl import lingvo
 
-from motioneye import settings
-from motioneye import template
+from motioneye import settings, template
 from motioneye.controls import smbctl, v4l2ctl
-from motioneye.handlers.main import MainHandler
 from motioneye.handlers.action import ActionHandler
-from motioneye.handlers.update import UpdateHandler
-from motioneye.handlers.movie import MovieHandler
-from motioneye.handlers.movie_playback import MovieDownloadHandler, MoviePlaybackHandler
+from motioneye.handlers.base import ManifestHandler, NotFoundHandler
+from motioneye.handlers.config import ConfigHandler
 from motioneye.handlers.log import LogHandler
 from motioneye.handlers.login import LoginHandler
-from motioneye.handlers.config import ConfigHandler
-from motioneye.handlers.base import ManifestHandler, NotFoundHandler
+from motioneye.handlers.main import MainHandler
+from motioneye.handlers.movie import MovieHandler
+from motioneye.handlers.movie_playback import MovieDownloadHandler, MoviePlaybackHandler
 from motioneye.handlers.picture import PictureHandler
-from motioneye.handlers.prefs import PrefsHandler
 from motioneye.handlers.power import PowerHandler
+from motioneye.handlers.prefs import PrefsHandler
 from motioneye.handlers.relay_event import RelayEventHandler
+from motioneye.handlers.update import UpdateHandler
 from motioneye.handlers.version import VersionHandler
 
+from .meyectl import lingvo
 
 _PID_FILE = 'motioneye.pid'
-_CURRENT_PICTURE_REGEX = re.compile('^/picture/\d+/current')
+_CURRENT_PICTURE_REGEX = re.compile(r'^/picture/\d+/current')
 
 
-class Daemon(object):
+class Daemon:
     def __init__(self, pid_file, run_callback=None):
         self.pid_file = pid_file
         self.run_callback = run_callback
@@ -83,9 +81,9 @@ class Daemon(object):
             # redirect standard file descriptors
         sys.stdout.flush()
         sys.stderr.flush()
-        si = open('/dev/null', 'r')
+        si = open('/dev/null')
         so = open('/dev/null', 'a+')
-        se = open('/dev/null', 'a+', 0)
+        se = open('/dev/null', 'a+')
         os.dup2(si.fileno(), sys.stdin.fileno())
         os.dup2(so.fileno(), sys.stdout.fileno())
         os.dup2(se.fileno(), sys.stderr.fileno())
@@ -177,24 +175,48 @@ def _log_request(handler):
 
     if log_method:
         request_time = 1000.0 * handler.request.request_time()
-        log_method("%d %s %.2fms", handler.get_status(),
-                   handler._request_summary(), request_time)
+        log_method(
+            "%d %s %.2fms",
+            handler.get_status(),
+            handler._request_summary(),
+            request_time,
+        )
 
 
 handler_mapping = [
     (r'^/$', MainHandler),
     (r'^/manifest.json$', ManifestHandler),
     (r'^/config/main/(?P<op>set|get)/?$', ConfigHandler),
-    (r'^/config/(?P<camera_id>\d+)/(?P<op>get|set|rem|test|authorize)/?$', ConfigHandler),
+    (
+        r'^/config/(?P<camera_id>\d+)/(?P<op>get|set|rem|test|authorize)/?$',
+        ConfigHandler,
+    ),
     (r'^/config/(?P<op>add|list|backup|restore)/?$', ConfigHandler),
     (r'^/picture/(?P<camera_id>\d+)/(?P<op>current|list|frame)/?$', PictureHandler),
-    (r'^/picture/(?P<camera_id>\d+)/(?P<op>download|preview|delete)/(?P<filename>.+?)/?$', PictureHandler),
-    (r'^/picture/(?P<camera_id>\d+)/(?P<op>zipped|timelapse|delete_all)/(?P<group>.*?)/?$', PictureHandler),
+    (
+        r'^/picture/(?P<camera_id>\d+)/(?P<op>download|preview|delete)/(?P<filename>.+?)/?$',
+        PictureHandler,
+    ),
+    (
+        r'^/picture/(?P<camera_id>\d+)/(?P<op>zipped|timelapse|delete_all)/(?P<group>.*?)/?$',
+        PictureHandler,
+    ),
     (r'^/movie/(?P<camera_id>\d+)/(?P<op>list)/?$', MovieHandler),
-    (r'^/movie/(?P<camera_id>\d+)/(?P<op>preview|delete)/(?P<filename>.+?)/?$', MovieHandler),
+    (
+        r'^/movie/(?P<camera_id>\d+)/(?P<op>preview|delete)/(?P<filename>.+?)/?$',
+        MovieHandler,
+    ),
     (r'^/movie/(?P<camera_id>\d+)/(?P<op>delete_all)/(?P<group>.*?)/?$', MovieHandler),
-    (r'^/movie/(?P<camera_id>\d+)/playback/(?P<filename>.+?)/?$', MoviePlaybackHandler, {'path': r''}),
-    (r'^/movie/(?P<camera_id>\d+)/download/(?P<filename>.+?)/?$', MovieDownloadHandler, {'path': r''}),
+    (
+        r'^/movie/(?P<camera_id>\d+)/playback/(?P<filename>.+?)/?$',
+        MoviePlaybackHandler,
+        {'path': r''},
+    ),
+    (
+        r'^/movie/(?P<camera_id>\d+)/download/(?P<filename>.+?)/?$',
+        MovieDownloadHandler,
+        {'path': r''},
+    ),
     (r'^/action/(?P<camera_id>\d+)/(?P<action>\w+)/?$', ActionHandler),
     (r'^/prefs/(?P<key>\w+)?/?$', PrefsHandler),
     (r'^/_relay_event/?$', RelayEventHandler),
@@ -226,19 +248,29 @@ def configure_signals():
 
 def test_requirements():
     if not os.access(settings.CONF_PATH, os.W_OK):
-        logging.fatal('config directory "%s" does not exist or is not writable' % settings.CONF_PATH)
+        logging.fatal(
+            'config directory "%s" does not exist or is not writable'
+            % settings.CONF_PATH
+        )
         sys.exit(-1)
 
     if not os.access(settings.RUN_PATH, os.W_OK):
-        logging.fatal('pid directory "%s" does not exist or is not writable' % settings.RUN_PATH)
+        logging.fatal(
+            'pid directory "%s" does not exist or is not writable' % settings.RUN_PATH
+        )
         sys.exit(-1)
 
     if not os.access(settings.LOG_PATH, os.W_OK):
-        logging.fatal('log directory "%s" does not exist or is not writable' % settings.LOG_PATH)
+        logging.fatal(
+            'log directory "%s" does not exist or is not writable' % settings.LOG_PATH
+        )
         sys.exit(-1)
 
     if not os.access(settings.MEDIA_PATH, os.W_OK):
-        logging.fatal('media directory "%s" does not exist or is not writable' % settings.MEDIA_PATH)
+        logging.fatal(
+            'media directory "%s" does not exist or is not writable'
+            % settings.MEDIA_PATH
+        )
         sys.exit(-1)
 
     if os.geteuid() != 0:
@@ -275,9 +307,11 @@ def test_requirements():
         sys.exit(-1)
 
     from motioneye import motionctl
+
     has_motion = motionctl.find_motion()[0] is not None
 
     from motioneye import mediafiles
+
     has_ffmpeg = mediafiles.find_ffmpeg() is not None
 
     has_v4lutils = v4l2ctl.find_v4l2_ctl() is not None
@@ -318,29 +352,36 @@ def make_media_folders():
                     os.makedirs(camera_config['target_dir'])
 
                 except Exception as e:
-                    logging.error('failed to create root media folder "%s" for camera with id %s: %s' % (
-                        camera_config['target_dir'], camera_id, e))
+                    logging.error(
+                        'failed to create root media folder "{}" for camera with id {}: {}'.format(
+                            camera_config['target_dir'], camera_id, e
+                        )
+                    )
 
 
 def start_motion():
-    from motioneye import config
-    from motioneye import motionctl
+    from motioneye import config, motionctl
 
     io_loop = IOLoop.instance()
 
     # add a motion running checker
     def checker():
 
-        if not motionctl.running() and motionctl.started() and config.get_enabled_local_motion_cameras():
+        if (
+            not motionctl.running()
+            and motionctl.started()
+            and config.get_enabled_local_motion_cameras()
+        ):
             try:
                 logging.error('motion not running, starting it')
                 motionctl.start()
 
             except Exception as e:
-                logging.error('failed to start motion: %(msg)s' % {
-                    'msg': str(e)}, exc_info=True)
+                logging.error(f'failed to start motion: {str(e)}', exc_info=True)
 
-        io_loop.add_timeout(datetime.timedelta(seconds=settings.MOTION_CHECK_INTERVAL), checker)
+        io_loop.add_timeout(
+            datetime.timedelta(seconds=settings.MOTION_CHECK_INTERVAL), checker
+        )
 
     try:
         motionctl.start()
@@ -348,28 +389,36 @@ def start_motion():
     except Exception as e:
         logging.error(str(e), exc_info=True)
 
-    io_loop.add_timeout(datetime.timedelta(seconds=settings.MOTION_CHECK_INTERVAL), checker)
+    io_loop.add_timeout(
+        datetime.timedelta(seconds=settings.MOTION_CHECK_INTERVAL), checker
+    )
 
 
 def parse_options(parser, args):
-    parser.add_argument('-b', help='start the server in background (daemonize)',
-                        action='store_true', dest='background', default=False)
+    parser.add_argument(
+        '-b',
+        help='start the server in background (daemonize)',
+        action='store_true',
+        dest='background',
+        default=False,
+    )
 
     return parser.parse_args(args)
 
 
 def make_app(debug: bool = False) -> Application:
-    return Application(handler_mapping, debug=debug, log_function=_log_request, static_path=settings.STATIC_PATH,
-                       static_url_prefix='/static/')
+    return Application(
+        handler_mapping,
+        debug=debug,
+        log_function=_log_request,
+        static_path=settings.STATIC_PATH,
+        static_url_prefix='/static/',
+    )
 
 
 def run():
     import motioneye
-    from motioneye import cleanup
-    from motioneye import mjpgclient
-    from motioneye import motionctl
-    from motioneye import tasks
-    from motioneye import wsswitch
+    from motioneye import cleanup, mjpgclient, motionctl, tasks, wsswitch
     from motioneye.controls import smbctl
 
     configure_signals()
@@ -405,10 +454,15 @@ def run():
 
     template.add_context('static_path', 'static/')
     template.add_context('lingvo', lingvo)
-    
-    application = Application(handler_mapping, debug=False, log_function=_log_request,
-                              static_path=settings.STATIC_PATH, static_url_prefix='/static/')
-    
+
+    application = Application(
+        handler_mapping,
+        debug=False,
+        log_function=_log_request,
+        static_path=settings.STATIC_PATH,
+        static_url_prefix='/static/',
+    )
+
     application.listen(settings.PORT, settings.LISTEN)
     logging.info(_('servilo komenciĝis'))
     io_loop = IOLoop.instance()
@@ -445,8 +499,8 @@ def main(parser, args, command):
     if command == 'start':
         if options.background:
             daemon = Daemon(
-                pid_file=os.path.join(settings.RUN_PATH, _PID_FILE),
-                run_callback=run)
+                pid_file=os.path.join(settings.RUN_PATH, _PID_FILE), run_callback=run
+            )
             daemon.start()
 
         else:

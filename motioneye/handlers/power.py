@@ -1,4 +1,3 @@
-
 # Copyright (c) 2020 Vlsarro
 # Copyright (c) 2013 Calin Crisan
 # This file is part of motionEye.
@@ -22,7 +21,6 @@ from tornado.ioloop import IOLoop
 
 from motioneye.controls.powerctl import PowerControl
 from motioneye.handlers.base import BaseHandler
-
 
 __all__ = ('PowerHandler',)
 

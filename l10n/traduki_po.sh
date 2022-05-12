@@ -7,9 +7,9 @@ src=eo
 
 #FIC=locale/en/LC_MESSAGES/motioneye.po
 FIC=$1
-dst=`grep "^\"Language: .*\\n\"$" $FIC|sed "s/^\"Language: //;s/.n\"$//"`
+dst=$(grep '^"Language: .*\n"$' "$FIC" | sed 's/^"Language: //;s/.n"$//')
 
-cat $FIC|awk -v src=$src -v dst=$dst '{
+awk -v "src=$src" -v "dst=$dst" '{
   if ( CONTMSG==1 && substr($1,1,1) != "\"")
   {
     CONTMSG=0;
@@ -36,12 +36,12 @@ cat $FIC|awk -v src=$src -v dst=$dst '{
       print ("#, fuzzy");
       print ("msgid " MSGID);
       printf("msgstr \"");
-      MSG=system("./traduko.sh " src " " dst " " MSGID )
+      MSG=system("l10n/traduko.sh " src " " dst " " MSGID )
       printf("\"\n");
     }
   }
   else
     print $0;
-}' >$FIC.$$
-mv $FIC $FIC.old
-mv $FIC.$$ $FIC
+}' "$FIC" > "$FIC.$$"
+mv "$FIC" "$FIC.old"
+mv "$FIC.$$" "$FIC"
