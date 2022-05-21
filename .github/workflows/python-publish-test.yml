@@ -2,11 +2,11 @@
 # The version is postfixed witf .devYYYYMMDDHHMM, allowing to upload each minute.
 # This workflow is run each dày at 23:59, or on demand.
 # When run on schedule, a new package is generated only if latest commit is less than 1 day.
+  workflow_dispatch:
 
 name: Upload Python Package
 
 on:
-  workflow_dispatch:
   schedule:
     - cron: '59 23 * * *'
 
@@ -16,7 +16,7 @@ permissions:
 jobs:
   deploy:
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     env:
       should_run: true
 
