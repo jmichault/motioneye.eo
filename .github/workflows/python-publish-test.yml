@@ -2,7 +2,7 @@
 # The version is postfixed witf .devYYYYMMDDHHMM, allowing to upload each minute.
 # This workflow is run each dày at 23:59, or on demand.
 
-name: Upload Python Package to test.pypi.org
+name: Upload Python Package
 
 on:
   workflow_dispatch:
