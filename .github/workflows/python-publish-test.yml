@@ -25,12 +25,12 @@ jobs:
       #if: ${{ github.event_name == 'schedule' }}
       run: test -z $(git rev-list  --after="1 minute"  ${{ github.sha }}) && echo "::set-output name=should_run::false"
     - name: Set up Python
-      if: ${{ outputs.should_run != 'false' }}
+      if: ${{ $should_run != 'false' }}
       uses: actions/setup-python@v3
       with:
         python-version: '3.x'
     - name: Install dependencies
-      if: ${{ outputs.should_run != 'false' }}
+      if: ${{ $should_run != 'false' }}
       run: |
         python -m pip install --upgrade pip
         pip install build twine
