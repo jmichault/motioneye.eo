@@ -25,22 +25,22 @@ jobs:
       #if: ${{ github.event_name == 'schedule' }}
       run: test -z $(git rev-list  --after="1 minute"  ${{ github.sha }}) && echo "::set-output name=should_run::false"
     - name: Set up Python
-      if: ${{ $should_run != 'false' }}
+      if: ${{ should_run != 'false' }}
       uses: actions/setup-python@v3
       with:
         python-version: '3.x'
     - name: Install dependencies
-      if: ${{ $should_run != 'false' }}
+      if: ${{ should_run != 'false' }}
       run: |
         python -m pip install --upgrade pip
         pip install build twine
     - name: build dev version
-      if: ${{ outputs.should_run != 'false' }}
+      if: ${{ should_run != 'false' }}
       run: sed -i "s/\"$/.dev$(date +%Y%m%d%H%M)\"/" motioneye/__init__.py
     - name: Build package
-      if: ${{ outputs.should_run != 'false' }}
+      if: ${{ should_run != 'false' }}
       run: python -m build
     - name: Publish package
-      if: ${{ outputs.should_run != 'false' }}
+      if: ${{ should_run != 'false' }}
       run: twine  upload --repository testpypi -u __token__ -p ${{ secrets.TEST_PYPI_API_TOKEN }} dist/* 
       
