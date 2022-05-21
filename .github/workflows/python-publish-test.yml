@@ -1,6 +1,7 @@
 # This workflow build and upload a development package to test.pypi.org
 # The version is postfixed witf .devYYYYMMDDHHMM, allowing to upload each minute.
 # This workflow is run each dày at 23:59, or on demand.
+# When run on schedule, a new package is generated only if latest commit is less than 1 day.
 
 name: Upload Python Package
 
@@ -24,8 +25,8 @@ jobs:
     - name: print latest_commit
       run: echo ${{ github.sha }}
     - name: check latest commit is less than a day
-      #if: ${{ github.event_name == 'schedule' }}
-      run: test -z $(git rev-list  --after="1 minute"  ${{ github.sha }}) && echo "should_run=false" >> $GITHUB_ENV;true
+      if: ${{ github.event_name == 'schedule' }}
+      run: test -z $(git rev-list  --after="24 hours"  ${{ github.sha }}) && echo "should_run=false" >> $GITHUB_ENV ; true
     - name: Set up Python
       if: ${{ env.should_run != 'false' }}
       uses: actions/setup-python@v3
@@ -44,5 +45,5 @@ jobs:
       run: python -m build
     - name: Publish package
       if: ${{ env.should_run != 'false' }}
-      run: twine  upload --repository testpypi -u __token__ -p ${{ secrets.TEST_PYPI_API_TOKEN }} dist/* 
+      run: twine  upload --repository testpypi -u __token__ -p ${{ secrets.TEST_PYPI_API_TOKEN }} dist/*
       
