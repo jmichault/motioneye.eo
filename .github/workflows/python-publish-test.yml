@@ -36,7 +36,7 @@ jobs:
       if: ${{ env.should_run != 'false' }}
       run: |
         python3 -m pip install --upgrade pip
-        pip3 install build twine
+        pip3 install build twine wheel
     - name: build dev version
       if: ${{ env.should_run != 'false' }}
       run: sed -i "s/\"$/.dev$(date +%Y%m%d%H%M)\"/" motioneye/__init__.py
