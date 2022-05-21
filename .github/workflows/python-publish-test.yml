@@ -13,11 +13,11 @@ permissions:
   contents: read
 
 jobs:
-  env:
-    should_run: true
   deploy:
 
     runs-on: ubuntu-latest
+    env:
+      should_run: true
 
     steps:
     - uses: actions/checkout@v3
