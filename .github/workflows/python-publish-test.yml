@@ -35,14 +35,14 @@ jobs:
     - name: Install dependencies
       if: ${{ env.should_run != 'false' }}
       run: |
-        python3 -m pip install --upgrade pip
-        pip3 install build twine wheel
+        python -m pip install --upgrade pip
+        pip install build twine wheel
     - name: build dev version
       if: ${{ env.should_run != 'false' }}
       run: sed -i "s/\"$/.dev$(date +%Y%m%d%H%M)\"/" motioneye/__init__.py
     - name: Build and publish package
       if: ${{ env.should_run != 'false' }}
       run: |
-        python3 -m build
+        python -m build
         twine upload --repository testpypi -u __token__ -p ${{ secrets.TEST_PYPI_API_TOKEN }} dist/*
       
