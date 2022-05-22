@@ -32,12 +32,12 @@ jobs:
       uses: actions/setup-python@v3
       with:
         python-version: '3.x'
- #   - name: Install dependencies
- #     if: ${{ env.should_run != 'false' }}
- #     run: |
- #       apt install python3-pip twine python3-wheel python3-build
- #       python -m pip install --upgrade pip
- #       pip install -U build twine wheel
+    - name: Install dependencies
+      if: ${{ env.should_run != 'false' }}
+      run: |
+        apt install python3-pip twine python3-wheel python3-build
+        python -m pip install --upgrade pip
+        pip install -U build twine wheel
     - name: build dev version
       if: ${{ env.should_run != 'false' }}
       run: sed -i "s/\"$/.dev$(date +%Y%m%d%H%M)\"/" motioneye/__init__.py
