@@ -1,14 +1,14 @@
+name: Pypi Daily Build
+
 # This workflow build and upload a development package to test.pypi.org
 # The version is postfixed witf .devYYYYMMDDHHMM, allowing to upload each minute.
 # This workflow is run each dày at 23:59, or on demand.
 # When run on schedule, a new package is generated only if latest commit is less than 1 day.
 
-name: Upload Python Package
-
 on:
   workflow_dispatch:
   schedule:
-    - cron: '59 23 * * *'
+    - cron: '01 12 * * *'
 
 permissions:
   contents: read
@@ -46,4 +46,5 @@ jobs:
     - name: Publish package
       if: ${{ env.should_run != 'false' }}
       run: twine  upload --repository testpypi -u __token__ -p ${{ secrets.TEST_PYPI_API_TOKEN }} dist/*
+#      run: twine  upload --repository pypi -u __token__ -p ${{ secrets.PYPI_API_TOKEN }} dist/*
       
