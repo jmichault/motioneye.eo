@@ -45,6 +45,6 @@ traduki :
 	find motioneye/locale -name "*.po" -exec l10n/traduki_po.sh {} \;
 
 dist :
-	rm -rf dist
+	rm -rf build dist
 	python3 -m build
 	twine  upload --repository testpypi dist/*
