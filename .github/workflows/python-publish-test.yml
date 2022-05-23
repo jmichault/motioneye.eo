@@ -26,7 +26,7 @@ jobs:
       run: git log -n 1
     - name: check latest commit is less than a day
       #if: ${{ github.event_name == 'schedule' }}
-      run: test -z $(git log -n 1 --after="2 minutes") && echo "should_run=false" >> $GITHUB_ENV ; true
+      run: test -z "$(git log -n 1 --after='2 minutes')" && echo "should_run=false" >> $GITHUB_ENV ; true
     - name: Set up Python
       if: ${{ env.should_run != 'false' }}
       uses: actions/setup-python@v3
